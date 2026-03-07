@@ -8,25 +8,25 @@ A next-generation credit appraisal platform that automates end-to-end **Credit A
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│                    Frontend (SPA)                         │
-│  Single-page app with dark glassmorphism UI               │
-│  Upload docs → Run Analysis → View Results                │
+│                    Frontend (SPA)                        │
+│  Single-page app with dark glassmorphism UI              │
+│  Upload docs → Run Analysis → View Results               │
 ├──────────────────────────────────────────────────────────┤
-│                   FastAPI Backend                         │
+│                   FastAPI Backend                        │
 ├────────────┬────────────────┬────────────────────────────┤
 │  Pillar 1  │   Pillar 2     │        Pillar 3            │
-│  Data      │   Research     │        Recommendation       │
-│  Ingestor  │   Agent        │        Engine               │
-│            │                │                             │
-│ • PDF/CSV  │ • Web Search   │ • Five Cs Scorer            │
-│ • GST      │ • Promoter     │ • Financial Ratios          │
-│ • Bank     │   Risk         │   (DSCR, ICR, Leverage)     │
-│ • Cross-   │ • eCourts/MCA  │ • Decision Engine           │
-│   verify   │ • RBI/Sector   │ • AI CAM Writer             │
-│ • Fraud    │ • Primary      │                             │
-│   Detector │   Insights     │                             │
-│ • Indian   │                │                             │
-│   Regulatory│               │                             │
+│  Data      │   Research     │        Recommendation      │
+│  Ingestor  │   Agent        │        Engine              │
+│            │                │                            │
+│ • PDF/CSV  │ • Web Search   │ • Five Cs Scorer           │
+│ • GST      │ • Promoter     │ • Financial Ratios         │
+│ • Bank     │   Risk         │   (DSCR, ICR, Leverage)    │
+│ • Cross-   │ • eCourts/MCA  │ • Decision Engine          │
+│   verify   │ • RBI/Sector   │ • AI CAM Writer            │
+│ • Fraud    │ • Primary      │                            │
+│   Detector │   Insights     │                            │
+│ • Indian   │                │                            │
+│   Regulatory│               │                            │
 └────────────┴────────────────┴────────────────────────────┘
 ```
 
@@ -77,7 +77,6 @@ A next-generation credit appraisal platform that automates end-to-end **Credit A
 
 ### Frontend
 - **Single-page dashboard** with dark glassmorphism theme
-- **Professional SVG icons** throughout (no emojis)
 - **Drag-and-drop file uploads** for Annual Report, GST, Bank Statement
 - **Skeleton pulse animation** during processing
 - **Comprehensive result rendering**:
@@ -90,18 +89,7 @@ A next-generation credit appraisal platform that automates end-to-end **Credit A
   - Promoter risk cards with linked company count
   - Expandable CAM sections
   - Research findings with sentiment tags
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Backend | FastAPI, Python 3.10+ |
-| AI/LLM | LangChain, HuggingFace Inference API |
-| Document Processing | pdfplumber |
-| Web Search | DuckDuckGo (via langchain-community) |
-| Frontend | Vanilla HTML/CSS/JS, SVG icons |
-| Styling | Custom CSS (dark glassmorphism) |
-
+  
 ## Getting Started
 
 ### Prerequisites
@@ -137,6 +125,18 @@ python run.py
 ```
 
 Open `http://localhost:8000` in your browser.
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Backend | FastAPI, Python 3.10+ |
+| AI/LLM | LangChain, HuggingFace Inference API |
+| Document Processing | pdfplumber |
+| Web Search | DuckDuckGo (via langchain-community) |
+| Frontend | Vanilla HTML/CSS/JS, SVG icons |
+| Styling | Custom CSS (dark glassmorphism) |
+
 
 ### Usage
 
