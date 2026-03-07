@@ -4,6 +4,7 @@ uvicorn
 python-multipart
 pydantic
 pydantic-settings
+aiofiles
 
 # Document Processing
 pdfplumber
