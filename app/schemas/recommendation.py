@@ -3,13 +3,47 @@
 from pydantic import BaseModel, Field
 
 
+# --- Financial Ratios ---
+
+class FinancialRatio(BaseModel):
+    """A single financial ratio with assessment."""
+    name: str
+    value: float | None = None
+    benchmark: str = ""
+    assessment: str = "N/A"  # Pass, Watch, Fail, N/A
+    detail: str = ""
+
+
+class FinancialRatioReport(BaseModel):
+    """All computed financial ratios."""
+    dscr: FinancialRatio = Field(
+        default_factory=lambda: FinancialRatio(name="DSCR"),
+    )
+    icr: FinancialRatio = Field(
+        default_factory=lambda: FinancialRatio(name="ICR"),
+    )
+    leverage: FinancialRatio = Field(
+        default_factory=lambda: FinancialRatio(name="Leverage"),
+    )
+    current_ratio: FinancialRatio = Field(
+        default_factory=lambda: FinancialRatio(name="Current Ratio"),
+    )
+    debt_to_equity: FinancialRatio = Field(
+        default_factory=lambda: FinancialRatio(name="Debt/Equity"),
+    )
+    ebitda_margin: FinancialRatio = Field(
+        default_factory=lambda: FinancialRatio(name="EBITDA Margin"),
+    )
+    overall_health: str = "Moderate"  # Strong, Moderate, Weak, Critical
+
+
 # --- Five Cs Scoring ---
 
 class CreditCScore(BaseModel):
     """Score for a single C of the Five Cs of Credit."""
-    category: str  # Character, Capacity, Capital, Collateral, Conditions
-    score: float = 0.0  # 0–100
-    weight: float = 0.2  # default equal weight
+    category: str
+    score: float = 0.0
+    weight: float = 0.2
     explanation: str = ""
     supporting_evidence: list[str] = Field(default_factory=list)
 
@@ -27,8 +61,8 @@ class FiveCsScoreResponse(BaseModel):
     """Five Cs scoring result."""
     company_name: str
     scores: list[CreditCScore] = Field(default_factory=list)
-    weighted_total: float = 0.0  # 0–100
-    risk_grade: str = ""  # AAA, AA, A, BBB, BB, B, C, D
+    weighted_total: float = 0.0
+    risk_grade: str = ""
     ai_commentary: str = ""
 
 
@@ -42,20 +76,27 @@ class LoanDecisionRequest(BaseModel):
     financial_data: dict = Field(default_factory=dict)
     research_data: dict = Field(default_factory=dict)
     risk_adjustments: list[dict] = Field(default_factory=list)
+    fraud_data: dict = Field(default_factory=dict)
+    regulatory_data: dict = Field(default_factory=dict)
+    promoter_data: dict = Field(default_factory=dict)
 
 
 class LoanDecision(BaseModel):
     """Final loan decision output."""
     company_name: str
-    decision: str = "REFER"  # APPROVE, REJECT, REFER
+    decision: str = "REFER"
     recommended_amount: float = 0.0
-    interest_rate: float = 0.0  # suggested rate in %
-    risk_premium: float = 0.0  # additional premium in bps
+    interest_rate: float = 0.0
+    risk_premium: float = 0.0
     risk_grade: str = ""
-    confidence_score: float = 0.0  # 0–1
+    confidence_score: float = 0.0
     explanation: str = ""
+    rejection_reasons: list[str] = Field(default_factory=list)
     key_factors: list[str] = Field(default_factory=list)
     conditions: list[str] = Field(default_factory=list)
+    financial_ratios: FinancialRatioReport = Field(
+        default_factory=FinancialRatioReport,
+    )
 
 
 # --- Credit Appraisal Memo (CAM) ---

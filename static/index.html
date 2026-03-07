@@ -1,166 +1,164 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Intelli-Credit | AI Credit Decisioning Engine</title>
-  <meta name="description" content="AI-powered corporate credit appraisal system for Indian lending — automates end-to-end Credit Appraisal Memo generation.">
+  <meta name="description"
+    content="AI-powered corporate credit appraisal system for Indian lending — automates end-to-end Credit Appraisal Memo generation.">
   <link rel="stylesheet" href="/static/style.css">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+  <link rel="icon"
+    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236366f1' stroke-width='2'><path d='M13 2L3 14h9l-1 8 10-12h-9l1-8z'/></svg>">
 </head>
+
 <body>
 
-<div class="app-container">
+  <div class="app-container">
 
-  <!-- ── Header ──────────────────────────────── -->
-  <header class="app-header">
-    <div class="logo-mark">
-      <div class="logo-icon">⚡</div>
-      <h1 class="app-title">Intelli-Credit</h1>
-    </div>
-    <p class="app-subtitle">AI-Powered Corporate Credit Decisioning Engine — Automates end-to-end Credit Appraisal Memo generation</p>
-  </header>
+    <!-- Header -->
+    <header class="app-header">
+      <div class="logo-mark">
+        <div class="logo-icon" id="logo-icon"></div>
+        <h1 class="app-title">Intelli-Credit</h1>
+      </div>
+      <p class="app-subtitle">AI-Powered Corporate Credit Decisioning Engine — Automates end-to-end Credit Appraisal
+        Memo generation</p>
+    </header>
 
-  <!-- ── Company Information ─────────────────── -->
-  <section class="glass-card" id="company-section">
-    <div class="card-header">
-      <div class="card-icon blue">🏢</div>
-      <div>
-        <div class="card-title">Company Information</div>
-        <div class="card-description">Basic details about the applicant company</div>
+    <!-- Company Information -->
+    <section class="glass-card" id="company-section">
+      <div class="card-header">
+        <div class="card-icon blue" id="icon-company"></div>
+        <div>
+          <div class="card-title">Company Information</div>
+          <div class="card-description">Basic details about the applicant company</div>
+        </div>
       </div>
-    </div>
-    <div class="form-grid">
-      <div class="form-group">
-        <label class="form-label" for="company_name">Company Name *</label>
-        <input class="form-input" type="text" id="company_name" placeholder="e.g. Reliance Industries Ltd" required>
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label" for="company_name">COMPANY NAME *</label>
+          <input class="form-input" type="text" id="company_name" placeholder="e.g. Reliance Industries Ltd" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="sector">SECTOR / INDUSTRY</label>
+          <input class="form-input" type="text" id="sector" placeholder="e.g. Oil & Gas, NBFC, Steel">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="promoter_names">PROMOTER NAMES</label>
+          <input class="form-input" type="text" id="promoter_names"
+            placeholder="Comma-separated, e.g. Mukesh Ambani, Nita Ambani">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="requested_amount">REQUESTED LOAN AMOUNT (INR)</label>
+          <input class="form-input" type="number" id="requested_amount" placeholder="e.g. 50000000" min="0">
+        </div>
       </div>
-      <div class="form-group">
-        <label class="form-label" for="sector">Sector / Industry</label>
-        <input class="form-input" type="text" id="sector" placeholder="e.g. Oil & Gas, NBFC, Steel">
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="promoter_names">Promoter Names</label>
-        <input class="form-input" type="text" id="promoter_names" placeholder="Comma-separated, e.g. Mukesh Ambani, Nita Ambani">
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="requested_amount">Requested Loan Amount (₹)</label>
-        <input class="form-input" type="number" id="requested_amount" placeholder="e.g. 50000000" min="0">
-      </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- ── Document Upload ─────────────────────── -->
-  <section class="glass-card" id="upload-section">
-    <div class="card-header">
-      <div class="card-icon green">📄</div>
-      <div>
-        <div class="card-title">Document Upload</div>
-        <div class="card-description">Upload financial documents for analysis — all fields are optional</div>
+    <!-- Document Upload -->
+    <section class="glass-card" id="upload-section">
+      <div class="card-header">
+        <div class="card-icon green" id="icon-upload"></div>
+        <div>
+          <div class="card-title">Document Upload</div>
+          <div class="card-description">Upload financial documents for analysis — all fields are optional</div>
+        </div>
       </div>
-    </div>
-    <div class="upload-grid">
-      <!-- Annual Report -->
-      <div class="upload-zone" id="zone-annual" data-field="annual_report">
-        <div class="upload-icon">📊</div>
-        <div class="upload-title">Annual Report</div>
-        <div class="upload-hint">PDF files only</div>
-        <div class="upload-filename" id="fname-annual"></div>
-        <input type="file" id="file-annual" accept=".pdf">
+      <div class="upload-grid">
+        <div class="upload-zone" id="zone-annual" data-field="annual_report">
+          <div class="upload-icon" id="icon-annual"></div>
+          <div class="upload-title">Annual Report</div>
+          <div class="upload-hint">PDF files only</div>
+          <div class="upload-filename" id="fname-annual"></div>
+          <input type="file" id="file-annual" accept=".pdf">
+        </div>
+        <div class="upload-zone" id="zone-gst" data-field="gst_file">
+          <div class="upload-icon" id="icon-gst"></div>
+          <div class="upload-title">GST Filing</div>
+          <div class="upload-hint">CSV, JSON, or PDF</div>
+          <div class="upload-filename" id="fname-gst"></div>
+          <input type="file" id="file-gst" accept=".csv,.json,.pdf">
+        </div>
+        <div class="upload-zone" id="zone-bank" data-field="bank_file">
+          <div class="upload-icon" id="icon-bank"></div>
+          <div class="upload-title">Bank Statement</div>
+          <div class="upload-hint">CSV or PDF</div>
+          <div class="upload-filename" id="fname-bank"></div>
+          <input type="file" id="file-bank" accept=".csv,.pdf">
+        </div>
       </div>
-      <!-- GST Filing -->
-      <div class="upload-zone" id="zone-gst" data-field="gst_file">
-        <div class="upload-icon">🧾</div>
-        <div class="upload-title">GST Filing</div>
-        <div class="upload-hint">CSV, JSON, or PDF</div>
-        <div class="upload-filename" id="fname-gst"></div>
-        <input type="file" id="file-gst" accept=".csv,.json,.pdf">
-      </div>
-      <!-- Bank Statement -->
-      <div class="upload-zone" id="zone-bank" data-field="bank_file">
-        <div class="upload-icon">🏦</div>
-        <div class="upload-title">Bank Statement</div>
-        <div class="upload-hint">CSV or PDF</div>
-        <div class="upload-filename" id="fname-bank"></div>
-        <input type="file" id="file-bank" accept=".csv,.pdf">
-      </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- ── Primary Insights ────────────────────── -->
-  <section class="glass-card" id="insights-section">
-    <div class="card-header">
-      <div class="card-icon amber">✍️</div>
-      <div>
-        <div class="card-title">Primary Due Diligence Notes</div>
-        <div class="card-description">Qualitative observations from factory visits, management interviews, etc.</div>
+    <!-- Primary Insights -->
+    <section class="glass-card" id="insights-section">
+      <div class="card-header">
+        <div class="card-icon amber" id="icon-insights"></div>
+        <div>
+          <div class="card-title">Primary Due Diligence Notes</div>
+          <div class="card-description">Qualitative observations from factory visits, management interviews, etc.</div>
+        </div>
+      </div>
+      <div id="insights-list"></div>
+      <button class="btn btn-ghost btn-sm" id="add-insight-btn" type="button">+ Add Observation</button>
+    </section>
+
+    <!-- Action Bar -->
+    <div class="action-bar">
+      <button class="btn btn-primary run-btn" id="run-analysis-btn" type="button">
+        <span id="btn-text">Run Full Analysis</span>
+        <div class="spinner" id="btn-spinner" style="display:none;"></div>
+      </button>
+    </div>
+
+    <!-- Skeleton Loader -->
+    <div class="skeleton-container" id="skeleton-loader">
+      <div class="skeleton-card">
+        <div class="skeleton-line h-lg w-40" style="margin:0 auto 16px;"></div>
+        <div class="skeleton-line h-xl w-60" style="margin:0 auto 20px;"></div>
+        <div class="skeleton-row">
+          <div class="skeleton-block"></div>
+          <div class="skeleton-block"></div>
+          <div class="skeleton-block"></div>
+        </div>
+      </div>
+      <div class="skeleton-card">
+        <div class="skeleton-line h-lg w-40"></div>
+        <div class="skeleton-line w-100"></div>
+        <div class="skeleton-line w-80"></div>
+        <div class="skeleton-line w-100"></div>
+        <div class="skeleton-line w-60"></div>
+      </div>
+      <div class="skeleton-card">
+        <div class="skeleton-line h-lg w-40"></div>
+        <div class="skeleton-row">
+          <div class="skeleton-block"></div>
+          <div class="skeleton-block"></div>
+          <div class="skeleton-block"></div>
+        </div>
+        <div class="skeleton-line w-100"></div>
+        <div class="skeleton-line w-80"></div>
+      </div>
+      <div class="skeleton-card">
+        <div class="skeleton-line h-lg w-40"></div>
+        <div class="skeleton-line w-100"></div>
+        <div class="skeleton-line w-100"></div>
+        <div class="skeleton-line w-80"></div>
       </div>
     </div>
-    <div id="insights-list">
-      <!-- Dynamic insight rows added here -->
-    </div>
-    <button class="btn btn-ghost btn-sm" id="add-insight-btn" type="button">+ Add Observation</button>
-  </section>
 
-  <!-- ── Action Bar ──────────────────────────── -->
-  <div class="action-bar">
-    <button class="btn btn-primary run-btn" id="run-analysis-btn" type="button">
-      <span id="btn-text">Run Full Analysis</span>
-      <div class="spinner" id="btn-spinner" style="display:none;"></div>
-    </button>
+    <!-- Results -->
+    <div id="results-section"></div>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <p>Intelli-Credit Engine v2.0 — AI-Powered Corporate Credit Appraisal</p>
+    </footer>
+
   </div>
 
-  <!-- ── Skeleton Loader ─────────────────────── -->
-  <div class="skeleton-container" id="skeleton-loader">
-    <!-- Decision skeleton -->
-    <div class="skeleton-card">
-      <div class="skeleton-line h-lg w-40" style="margin:0 auto 16px;"></div>
-      <div class="skeleton-line h-xl w-60" style="margin:0 auto 20px;"></div>
-      <div class="skeleton-row">
-        <div class="skeleton-block"></div>
-        <div class="skeleton-block"></div>
-        <div class="skeleton-block"></div>
-      </div>
-    </div>
-    <!-- Five Cs skeleton -->
-    <div class="skeleton-card">
-      <div class="skeleton-line h-lg w-40"></div>
-      <div class="skeleton-line w-100"></div>
-      <div class="skeleton-line w-80"></div>
-      <div class="skeleton-line w-100"></div>
-      <div class="skeleton-line w-60"></div>
-      <div class="skeleton-line w-100"></div>
-    </div>
-    <!-- Research skeleton -->
-    <div class="skeleton-card">
-      <div class="skeleton-line h-lg w-40"></div>
-      <div class="skeleton-line w-100"></div>
-      <div class="skeleton-line w-80"></div>
-      <div class="skeleton-line w-60"></div>
-    </div>
-    <!-- CAM skeleton -->
-    <div class="skeleton-card">
-      <div class="skeleton-line h-lg w-40"></div>
-      <div class="skeleton-line w-100"></div>
-      <div class="skeleton-line w-100"></div>
-      <div class="skeleton-line w-80"></div>
-      <div class="skeleton-line w-100"></div>
-      <div class="skeleton-line w-60"></div>
-    </div>
-  </div>
-
-  <!-- ── Results ─────────────────────────────── -->
-  <div id="results-section">
-    <!-- Populated by app.js -->
-  </div>
-
-  <!-- ── Footer ──────────────────────────────── -->
-  <footer class="app-footer">
-    <p>Intelli-Credit Engine v1.0 — AI-Powered Corporate Credit Appraisal</p>
-  </footer>
-
-</div>
-
-<script src="/static/app.js"></script>
+  <script src="/static/icons.js"></script>
+  <script src="/static/app.js"></script>
 </body>
+
 </html>

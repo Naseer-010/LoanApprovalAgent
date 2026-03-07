@@ -1,8 +1,9 @@
 """
 Unified pipeline endpoint — chains all three pillars end-to-end.
 
-Accepts company info, uploaded documents, and qualitative notes in a single
-request. Returns a complete analysis with all results.
+Accepts company info, uploaded documents, and qualitative notes in a
+single request. Returns a complete analysis including fraud detection,
+regulatory checks, promoter risk, and financial ratio modeling.
 """
 
 import json
@@ -33,19 +34,36 @@ from app.schemas.research import (
     ResearchReport,
     WebSearchRequest,
 )
-from app.services.document_processing.ai_extractor import extract_with_ai
+from app.services.document_processing.ai_extractor import (
+    extract_with_ai,
+)
 from app.services.document_processing.pdf_extractor import (
     extract_text_from_pdf,
 )
 from app.services.file_service import save_file
-from app.services.ingestor.bank_statement_parser import parse_bank_statement
+from app.services.ingestor.bank_statement_parser import (
+    parse_bank_statement,
+)
 from app.services.ingestor.cross_verification import cross_verify
+from app.services.ingestor.fraud_detector import detect_fraud
 from app.services.ingestor.gst_parser import parse_gst_data
+from app.services.ingestor.indian_regulatory import (
+    run_regulatory_checks,
+)
 from app.services.recommendation.cam_generator import generate_cam
-from app.services.recommendation.decision_engine import make_decision
+from app.services.recommendation.decision_engine import (
+    make_decision,
+)
 from app.services.recommendation.five_cs_scorer import score_five_cs
-from app.services.research.news_aggregator import build_research_report
-from app.services.research.primary_insights import process_primary_insights
+from app.services.research.news_aggregator import (
+    build_research_report,
+)
+from app.services.research.primary_insights import (
+    process_primary_insights,
+)
+from app.services.research.promoter_analyzer import (
+    analyze_promoter_risk,
+)
 from app.services.research.web_researcher import run_web_research
 
 logger = logging.getLogger(__name__)
@@ -61,27 +79,19 @@ def full_analysis(
     requested_amount: Annotated[float, Form()] = 0.0,
     primary_notes: Annotated[str, Form()] = "[]",
     annual_report: Annotated[
-        UploadFile | None, File(description="Annual report PDF")
+        UploadFile | None,
+        File(description="Annual report PDF"),
     ] = None,
     gst_file: Annotated[
-        UploadFile | None, File(description="GST filing")
+        UploadFile | None,
+        File(description="GST filing"),
     ] = None,
     bank_file: Annotated[
-        UploadFile | None, File(description="Bank statement")
+        UploadFile | None,
+        File(description="Bank statement"),
     ] = None,
 ) -> FullAnalysisResponse:
-    """
-    Run the full credit analysis pipeline.
-
-    Chains all three pillars end-to-end:
-    1. Parse/analyze uploaded documents
-    2. Cross-verify GST vs bank data
-    3. Run secondary web research
-    4. Process primary qualitative insights
-    5. Score Five Cs of Credit
-    6. Generate loan decision
-    7. Generate Credit Appraisal Memo
-    """
+    """Run the full credit analysis pipeline end-to-end."""
     steps: list[str] = []
     errors: list[str] = []
 
@@ -94,7 +104,6 @@ def full_analysis(
     five_cs: FiveCsScoreResponse | None = None
     decision: LoanDecision | None = None
 
-    # Parse promoter names and notes from JSON strings
     try:
         promoter_list = json.loads(promoter_names)
     except (json.JSONDecodeError, TypeError):
@@ -105,22 +114,20 @@ def full_analysis(
     except (json.JSONDecodeError, TypeError):
         notes_list = []
 
-    # ── PILLAR 1: Data Ingestor ──────────────────────────
+    # ── PILLAR 1: Data Ingestor ──────────────────
 
-    # 1a. Analyze annual report
     if annual_report and annual_report.filename:
         try:
             path = save_file(annual_report, ANNUAL_REPORT_DIR)
             text = extract_text_from_pdf(path)
             doc_analysis = extract_with_ai(
-                text, file_name=annual_report.filename
+                text, file_name=annual_report.filename,
             )
             steps.append("document_analysis")
         except Exception as e:
             logger.error("Document analysis failed: %s", e)
             errors.append(f"Document analysis: {e}")
 
-    # 1b. Parse GST
     if gst_file and gst_file.filename:
         try:
             gst_path = save_file(gst_file, GST_DIR)
@@ -130,17 +137,15 @@ def full_analysis(
             logger.error("GST parsing failed: %s", e)
             errors.append(f"GST parsing: {e}")
 
-    # 1c. Parse bank statement
     if bank_file and bank_file.filename:
         try:
             bank_path = save_file(bank_file, BANK_DIR)
             bank_data = parse_bank_statement(bank_path)
             steps.append("bank_statement_parsing")
         except Exception as e:
-            logger.error("Bank statement parsing failed: %s", e)
-            errors.append(f"Bank statement parsing: {e}")
+            logger.error("Bank parsing failed: %s", e)
+            errors.append(f"Bank parsing: {e}")
 
-    # 1d. Cross-verify
     if gst_data and bank_data:
         try:
             cross_ver = cross_verify(gst_data, bank_data)
@@ -149,9 +154,32 @@ def full_analysis(
             logger.error("Cross-verification failed: %s", e)
             errors.append(f"Cross-verification: {e}")
 
-    # ── PILLAR 2: Research Agent ─────────────────────────
+    # ── Fraud Detection ──────────────────────────
 
-    # 2a. Web research
+    fraud_report = None
+    try:
+        fraud_report = detect_fraud(gst_data, bank_data)
+        if cross_ver:
+            cross_ver.fraud_report = fraud_report
+        steps.append("fraud_detection")
+    except Exception as e:
+        logger.error("Fraud detection failed: %s", e)
+        errors.append(f"Fraud detection: {e}")
+
+    # ── Indian Regulatory Checks ─────────────────
+
+    reg_checks = None
+    try:
+        reg_checks = run_regulatory_checks(
+            company_name, gst_data, promoter_list,
+        )
+        steps.append("regulatory_checks")
+    except Exception as e:
+        logger.error("Regulatory checks failed: %s", e)
+        errors.append(f"Regulatory checks: {e}")
+
+    # ── PILLAR 2: Research Agent ─────────────────
+
     if company_name:
         try:
             search_req = WebSearchRequest(
@@ -160,38 +188,53 @@ def full_analysis(
                 promoter_names=promoter_list,
             )
             news_items = run_web_research(search_req)
-            research = build_research_report(search_req, news_items)
+            research = build_research_report(
+                search_req, news_items,
+            )
             steps.append("web_research")
         except Exception as e:
             logger.error("Web research failed: %s", e)
             errors.append(f"Web research: {e}")
 
-    # 2b. Primary insights
+    # ── Promoter Risk Analysis ───────────────────
+
+    promoter_risk = None
+    if promoter_list:
+        try:
+            promoter_risk = analyze_promoter_risk(
+                company_name, promoter_list, sector,
+            )
+            steps.append("promoter_risk_analysis")
+        except Exception as e:
+            logger.error("Promoter analysis failed: %s", e)
+            errors.append(f"Promoter analysis: {e}")
+
     if notes_list:
         try:
             insights = [
                 PrimaryInsight(
                     insight_type=n.get("type", "general"),
-                    observation=n.get("observation", n.get("text", "")),
+                    observation=n.get(
+                        "observation", n.get("text", ""),
+                    ),
                     severity=n.get("severity", "neutral"),
                 )
                 for n in notes_list
                 if isinstance(n, dict)
             ]
             if insights:
-                insights_req = PrimaryInsightsRequest(
+                ins_req = PrimaryInsightsRequest(
                     company_name=company_name,
                     insights=insights,
                 )
-                insights_resp = process_primary_insights(insights_req)
+                insights_resp = process_primary_insights(ins_req)
                 steps.append("primary_insights")
         except Exception as e:
             logger.error("Primary insights failed: %s", e)
             errors.append(f"Primary insights: {e}")
 
-    # ── PILLAR 3: Recommendation Engine ──────────────────
+    # ── PILLAR 3: Recommendation Engine ──────────
 
-    # Build financial data dict from extracted data
     financial = {}
     if doc_analysis and doc_analysis.financials:
         f = doc_analysis.financials
@@ -210,10 +253,18 @@ def full_analysis(
         }
 
     research_dict = research.model_dump() if research else {}
-    insights_dict = insights_resp.model_dump() if insights_resp else {}
+    insights_dict = (
+        insights_resp.model_dump() if insights_resp else {}
+    )
     cross_dict = cross_ver.model_dump() if cross_ver else {}
+    fraud_dict = (
+        fraud_report.model_dump() if fraud_report else {}
+    )
+    reg_dict = reg_checks.model_dump() if reg_checks else {}
+    promo_dict = (
+        promoter_risk.model_dump() if promoter_risk else {}
+    )
 
-    # 3a. Five Cs scoring
     try:
         score_req = FiveCsScoreRequest(
             company_name=company_name,
@@ -228,12 +279,12 @@ def full_analysis(
         logger.error("Five Cs scoring failed: %s", e)
         errors.append(f"Five Cs scoring: {e}")
 
-    # 3b. Loan decision
     try:
         risk_adj = []
         if insights_resp and insights_resp.risk_adjustments:
             risk_adj = [
-                r.model_dump() for r in insights_resp.risk_adjustments
+                r.model_dump()
+                for r in insights_resp.risk_adjustments
             ]
 
         decision_req = LoanDecisionRequest(
@@ -243,6 +294,9 @@ def full_analysis(
             financial_data=financial,
             research_data=research_dict,
             risk_adjustments=risk_adj,
+            fraud_data=fraud_dict,
+            regulatory_data=reg_dict,
+            promoter_data=promo_dict,
         )
         decision = make_decision(decision_req)
         steps.append("loan_decision")
@@ -250,15 +304,18 @@ def full_analysis(
         logger.error("Loan decision failed: %s", e)
         errors.append(f"Loan decision: {e}")
 
-    # 3c. CAM generation
     cam = None
     try:
         cam_req = CAMRequest(
             company_name=company_name,
             financial_data=financial,
             research_report=research_dict,
-            five_cs_scores=five_cs.model_dump() if five_cs else {},
-            loan_decision=decision.model_dump() if decision else {},
+            five_cs_scores=(
+                five_cs.model_dump() if five_cs else {}
+            ),
+            loan_decision=(
+                decision.model_dump() if decision else {}
+            ),
             primary_insights=[
                 n for n in notes_list if isinstance(n, dict)
             ],
@@ -272,13 +329,19 @@ def full_analysis(
 
     return FullAnalysisResponse(
         company_name=company_name,
-        status="completed" if not errors else "completed_with_errors",
+        status=(
+            "completed" if not errors
+            else "completed_with_errors"
+        ),
         document_analysis=doc_analysis,
         gst_data=gst_data,
         bank_statement=bank_data,
         cross_verification=cross_ver,
+        fraud_report=fraud_report,
+        regulatory_checks=reg_checks,
         research_report=research,
         primary_insights=insights_resp,
+        promoter_risk=promoter_risk,
         five_cs_scores=five_cs,
         loan_decision=decision,
         credit_memo=cam,

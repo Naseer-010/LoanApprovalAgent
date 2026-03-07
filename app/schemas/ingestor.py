@@ -29,7 +29,9 @@ class DocumentAnalysisResponse(BaseModel):
     file_name: str
     document_type: str = "unknown"
     text_length: int = 0
-    financials: ExtractedFinancials = Field(default_factory=ExtractedFinancials)
+    financials: ExtractedFinancials = Field(
+        default_factory=ExtractedFinancials,
+    )
     risks: ExtractedRisks = Field(default_factory=ExtractedRisks)
     summary: str = ""
     raw_metrics: dict | None = None
@@ -89,3 +91,70 @@ class CrossVerificationResult(BaseModel):
     anomalies: list[AnomalyFlag] = Field(default_factory=list)
     risk_level: str = "low"  # low, medium, high, critical
     ai_analysis: str = ""
+    fraud_report: "FraudReport | None" = None
+
+
+# --- Fraud Detection ---
+
+class FraudAlert(BaseModel):
+    """A single fraud detection alert."""
+    alert_type: str
+    severity: str = "medium"
+    title: str
+    description: str
+    evidence: str = ""
+    confidence: float = 0.5  # 0–1
+
+
+class FraudReport(BaseModel):
+    """Full fraud detection report."""
+    total_alerts: int = 0
+    critical_count: int = 0
+    high_count: int = 0
+    alerts: list[FraudAlert] = Field(default_factory=list)
+    overall_fraud_risk: str = "low"
+    fraud_score: float = 0.0  # 0–100
+
+
+# --- Indian Regulatory Checks ---
+
+class CIBILReport(BaseModel):
+    """Simulated CIBIL commercial credit report."""
+    score: int = 0  # 300–900
+    rating: str = ""
+    credit_age_years: int = 0
+    active_accounts: int = 0
+    overdue_accounts: int = 0
+    default_history: list[str] = Field(default_factory=list)
+    enquiry_count_6m: int = 0
+    assessment: str = ""
+
+
+class GSTRMismatch(BaseModel):
+    """GSTR-2A vs 3B mismatch result."""
+    itc_claimed_3b: float = 0.0
+    itc_eligible_2a: float = 0.0
+    mismatch_amount: float = 0.0
+    mismatch_percentage: float = 0.0
+    risk_flag: str = ""
+
+
+class MCADirectorCheck(BaseModel):
+    """MCA director status check result."""
+    director_name: str
+    din: str = ""
+    status: str = "Active"  # Active, Disqualified, Struck Off
+    companies_linked: int = 0
+    defaulter_flag: bool = False
+    details: str = ""
+
+
+class RegulatoryCheckResult(BaseModel):
+    """Consolidated Indian regulatory check results."""
+    cibil: CIBILReport = Field(default_factory=CIBILReport)
+    gstr_mismatch: GSTRMismatch = Field(default_factory=GSTRMismatch)
+    director_checks: list[MCADirectorCheck] = Field(
+        default_factory=list,
+    )
+    overall_regulatory_risk: str = "low"
+    flags: list[str] = Field(default_factory=list)
