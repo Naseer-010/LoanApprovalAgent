@@ -8,14 +8,38 @@ aiofiles
 
 # Document Processing
 pdfplumber
+camelot-py[cv]
+tabula-py
+pytesseract
+Pillow
+pandas
+openpyxl
 
 # AI / LLM
 langchain
 langchain-huggingface
 langchain-community
 
+# Machine Learning
+scikit-learn
+xgboost
+shap
+joblib
+
+# Network Analysis
+networkx
+
+# CAM Report Generation
+python-docx
+reportlab
+matplotlib
+
+# Research APIs
+requests
+gnews
+
+# Web Search (fallback)
+duckduckgo-search
+
 # Environment
 python-dotenv
-
-# Web Search (for Research Agent)
-duckduckgo-search

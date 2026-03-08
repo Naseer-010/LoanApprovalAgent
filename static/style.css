@@ -1354,3 +1354,83 @@ select.form-input {
   background: var(--danger-bg);
   color: var(--danger);
 }
+
+/* ── Live Investigation Timeline ────────────────── */
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 16px;
+  padding-left: 12px;
+  border-left: 2px solid var(--border);
+}
+
+.timeline-step {
+  position: relative;
+  padding-left: 24px;
+}
+
+.timeline-step .step-indicator {
+  position: absolute;
+  left: -21px; /* Center over the 2px border */
+  top: 4px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--bg-card);
+  border: 2px solid var(--border);
+  transition: all 0.3s var(--ease);
+}
+
+.timeline-step.in_progress .step-indicator {
+  border-color: var(--warning);
+  box-shadow: 0 0 10px var(--warning-bg);
+  animation: pulse 1.5s infinite;
+}
+
+.timeline-step.completed .step-indicator {
+  background: var(--success);
+  border-color: var(--success);
+  box-shadow: 0 0 10px var(--success-bg);
+}
+
+.timeline-step.error .step-indicator {
+  background: var(--danger);
+  border-color: var(--danger);
+}
+
+.step-content {
+  background: var(--bg-glass);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+}
+
+.step-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.step-detail {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+@keyframes pulse {
+  0% { transform: scale(0.95); opacity: 0.8; box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
+  70% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 6px rgba(245, 158, 11, 0); }
+  100% { transform: scale(0.95); opacity: 0.8; box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+}
+
+/* ── Promoter Network Graph ─────────────────────── */
+#network-graph-container {
+  width: 100%;
+  height: 400px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin-top: 16px;
+  overflow: hidden;
+}

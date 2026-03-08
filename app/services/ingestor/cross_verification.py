@@ -2,7 +2,7 @@
 Cross-Verification Service — compares GST reported revenue with bank statement credits.
 
 Detects anomalies like circular trading, revenue inflation, and significant discrepancies.
-Uses rule-based checks + LLM reasoning for nuanced analysis.
+Uses rule-based checks with per-period comparison. LLM analysis is optional enhancement.
 """
 
 import logging
@@ -68,7 +68,7 @@ def cross_verify(
     """
     Cross-verify GST reported turnover against bank statement credits.
 
-    Applies rule-based checks first, then uses LLM for deeper analysis.
+    Applies rule-based checks first, then optionally uses LLM for deeper analysis.
     """
     gst_turnover = gst_data.total_turnover
     bank_credits = bank_data.total_credits
@@ -84,10 +84,16 @@ def cross_verify(
     # Rule-based anomaly detection
     anomalies = _rule_based_checks(gst_data, bank_data, discrepancy_pct)
 
+    # Per-period comparison (if GST has multiple entries)
+    anomalies.extend(_per_period_checks(gst_data, bank_data))
+
+    # GSTR-2A/3B mismatch checks
+    anomalies.extend(_gstr_mismatch_checks(gst_data))
+
     # Determine risk level from rules
     risk_level = _assess_risk_level(anomalies, discrepancy_pct)
 
-    # LLM-based deeper analysis
+    # LLM-based deeper analysis (optional, best-effort)
     ai_analysis = _llm_analysis(gst_data, bank_data, discrepancy_pct)
 
     return CrossVerificationResult(
@@ -175,6 +181,112 @@ def _rule_based_checks(
     return anomalies
 
 
+def _per_period_checks(
+    gst_data: GSTDataResponse,
+    bank_data: BankStatementSummary,
+) -> list[AnomalyFlag]:
+    """
+    Compare GST turnover with bank credits on a per-period basis
+    if GST has multiple entries.
+    """
+    anomalies: list[AnomalyFlag] = []
+
+    if len(gst_data.entries) < 2:
+        return anomalies
+
+    # Check for inconsistent growth patterns
+    turnovers = [e.turnover for e in gst_data.entries]
+    if turnovers:
+        growth_rates = []
+        for i in range(1, len(turnovers)):
+            if turnovers[i - 1] > 0:
+                rate = (turnovers[i] - turnovers[i - 1]) / turnovers[i - 1]
+                growth_rates.append(rate)
+
+        # Flag volatile growth (sign changes more than 3 times)
+        if len(growth_rates) >= 4:
+            sign_changes = sum(
+                1 for i in range(1, len(growth_rates))
+                if (growth_rates[i] > 0) != (growth_rates[i - 1] > 0)
+            )
+            if sign_changes >= 3:
+                anomalies.append(
+                    AnomalyFlag(
+                        anomaly_type="volatile_growth",
+                        severity="medium",
+                        description=(
+                            "Revenue shows highly volatile growth pattern "
+                            "with frequent direction changes. May indicate "
+                            "manipulated period-end reporting."
+                        ),
+                        evidence=f"Sign changes in growth: {sign_changes}",
+                    )
+                )
+
+    return anomalies
+
+
+def _gstr_mismatch_checks(
+    gst_data: GSTDataResponse,
+) -> list[AnomalyFlag]:
+    """
+    Check for GSTR-2A vs 3B style mismatches using available data.
+
+    When actual GSTR-2A data is not available, flag ITC anomalies
+    that would typically be caught by 2A/3B reconciliation.
+    """
+    anomalies: list[AnomalyFlag] = []
+
+    if not gst_data or gst_data.total_itc_claimed == 0:
+        return anomalies
+
+    # Check ITC as percentage of turnover
+    if gst_data.total_turnover > 0:
+        itc_to_turnover = gst_data.total_itc_claimed / gst_data.total_turnover
+        if itc_to_turnover > 0.15:
+            anomalies.append(
+                AnomalyFlag(
+                    anomaly_type="high_itc_to_turnover",
+                    severity="medium",
+                    description=(
+                        f"ITC claimed is {itc_to_turnover:.1%} of turnover, "
+                        f"which is unusually high. May indicate inflated "
+                        f"purchase invoices or GSTR-2A/3B mismatch."
+                    ),
+                    evidence=(
+                        f"ITC: ₹{gst_data.total_itc_claimed:,.0f}, "
+                        f"Turnover: ₹{gst_data.total_turnover:,.0f}"
+                    ),
+                )
+            )
+
+    # Check per-period ITC consistency
+    if len(gst_data.entries) >= 3:
+        itc_ratios = []
+        for entry in gst_data.entries:
+            if entry.tax_paid > 0:
+                itc_ratios.append(entry.itc_claimed / entry.tax_paid)
+
+        if itc_ratios:
+            avg_ratio = sum(itc_ratios) / len(itc_ratios)
+            deviations = [abs(r - avg_ratio) for r in itc_ratios]
+            if max(deviations) > 0.3 * avg_ratio:
+                anomalies.append(
+                    AnomalyFlag(
+                        anomaly_type="itc_inconsistency",
+                        severity="medium",
+                        description=(
+                            "ITC-to-tax ratio varies significantly across "
+                            "periods. Large swings may indicate selective "
+                            "or opportunistic ITC claiming."
+                        ),
+                        evidence=f"ITC ratios range: {min(itc_ratios):.2f} - {max(itc_ratios):.2f}",
+                    )
+                )
+
+    return anomalies
+
+
 def _assess_risk_level(anomalies: list[AnomalyFlag], discrepancy_pct: float) -> str:
     """Determine overall risk level from anomalies."""
     if any(a.severity == "critical" for a in anomalies):
@@ -191,7 +303,7 @@ def _llm_analysis(
     bank_data: BankStatementSummary,
     discrepancy_pct: float,
 ) -> str:
-    """Use LLM for deeper analysis of discrepancies."""
+    """Use LLM for deeper analysis of discrepancies (optional/best-effort)."""
     try:
         llm = get_ingestor_llm()
         chain = CROSS_VERIFY_PROMPT | llm

@@ -4,9 +4,13 @@ Fraud Detector — advanced fraud pattern detection for Indian corporate credit.
 Detects circular trading, shell company indicators, revenue spikes,
 repeated counterparty patterns, cashflow manipulation, and GSTR-2A/3B
 mismatch signals from GST and bank statement data.
+
+All fraud signals are derived from actual document data — no hardcoded
+scores or simulated patterns.
 """
 
 import logging
+from collections import Counter
 
 from app.schemas.ingestor import (
     BankStatementSummary,
@@ -25,7 +29,8 @@ def detect_fraud(
     """
     Run comprehensive fraud detection across GST and bank data.
 
-    Returns a FraudReport with scored alerts.
+    Returns a FraudReport with scored alerts and a fraud_risk_score (0-100).
+    All signals are derived from actual input data.
     """
     alerts: list[FraudAlert] = []
 
@@ -38,11 +43,25 @@ def detect_fraud(
     if gst_data and bank_data:
         alerts.extend(_check_cross_fraud(gst_data, bank_data))
 
-    # Score
+    # Compute fraud risk score (0-100)
+    fraud_score = _compute_fraud_score(alerts)
+    risk = _fraud_risk_level(fraud_score)
+
+    # Build anomaly list
+    anomalies = [
+        {
+            "type": a.alert_type,
+            "severity": a.severity,
+            "title": a.title,
+            "description": a.description,
+            "evidence": a.evidence,
+            "confidence": a.confidence,
+        }
+        for a in alerts
+    ]
+
     critical = sum(1 for a in alerts if a.severity == "critical")
     high = sum(1 for a in alerts if a.severity == "high")
-    fraud_score = min(100, critical * 30 + high * 15 + len(alerts) * 5)
-    risk = _fraud_risk_level(fraud_score)
 
     return FraudReport(
         total_alerts=len(alerts),
@@ -52,6 +71,32 @@ def detect_fraud(
         overall_fraud_risk=risk,
         fraud_score=fraud_score,
     )
+
+
+def _compute_fraud_score(alerts: list[FraudAlert]) -> float:
+    """
+    Compute fraud risk score (0-100) from detected alerts.
+
+    Score is based on severity-weighted sum of alerts with
+    confidence-adjusted scoring.
+    """
+    if not alerts:
+        return 0.0
+
+    severity_weights = {
+        "critical": 25,
+        "high": 15,
+        "medium": 8,
+        "low": 3,
+    }
+
+    score = 0.0
+    for alert in alerts:
+        weight = severity_weights.get(alert.severity, 5)
+        confidence = max(0.0, min(1.0, alert.confidence))
+        score += weight * confidence
+
+    return min(100.0, round(score, 1))
 
 
 def _check_gst_fraud(gst: GSTDataResponse) -> list[FraudAlert]:
@@ -79,6 +124,29 @@ def _check_gst_fraud(gst: GSTDataResponse) -> list[FraudAlert]:
                         f"Current: {curr:,.0f}"
                     ),
                     confidence=0.7,
+                ))
+
+    # ── Sudden Revenue Drop (potential manipulation) ──
+    if len(gst.entries) >= 2:
+        for i in range(1, len(gst.entries)):
+            prev = gst.entries[i - 1].turnover
+            curr = gst.entries[i].turnover
+            if prev > 0 and curr < prev * 0.3:
+                pct = ((prev - curr) / prev) * 100
+                alerts.append(FraudAlert(
+                    alert_type="revenue_cliff",
+                    severity="medium",
+                    title="Sudden Revenue Drop",
+                    description=(
+                        f"Turnover dropped {pct:.0f}% from "
+                        f"{gst.entries[i-1].period} to "
+                        f"{gst.entries[i].period}. "
+                        f"May indicate business stress or prior inflation."
+                    ),
+                    evidence=(
+                        f"Previous: {prev:,.0f}, Current: {curr:,.0f}"
+                    ),
+                    confidence=0.55,
                 ))
 
     # ── ITC Inflation (GSTR-2A vs 3B proxy) ──
@@ -122,7 +190,7 @@ def _check_gst_fraud(gst: GSTDataResponse) -> list[FraudAlert]:
                 variance = sum(
                     (t - avg) ** 2 for t in turnovers
                 ) / len(turnovers)
-                cv = (variance ** 0.5) / avg  # coefficient of variation
+                cv = (variance ** 0.5) / avg
                 if cv < 0.05 and len(turnovers) >= 3:
                     alerts.append(FraudAlert(
                         alert_type="uniform_revenue",
@@ -138,6 +206,50 @@ def _check_gst_fraud(gst: GSTDataResponse) -> list[FraudAlert]:
                         confidence=0.6,
                     ))
 
+    # ── Round-Number Turnovers ──
+    if len(gst.entries) >= 2:
+        round_count = 0
+        for entry in gst.entries:
+            if entry.turnover > 10000 and entry.turnover % 10000 == 0:
+                round_count += 1
+        if round_count >= 2:
+            ratio = round_count / len(gst.entries)
+            if ratio > 0.5:
+                alerts.append(FraudAlert(
+                    alert_type="round_number_turnover",
+                    severity="medium",
+                    title="Round-Number Turnovers in GST",
+                    description=(
+                        f"{round_count} of {len(gst.entries)} periods "
+                        f"have suspiciously round turnover figures. "
+                        f"May indicate estimated or fabricated filings."
+                    ),
+                    evidence=f"{ratio:.0%} of periods have round numbers",
+                    confidence=0.5,
+                ))
+
+    # ── Repeated Same Turnover (possible copy-paste filings) ──
+    if len(gst.entries) >= 3:
+        turnover_counts = Counter(
+            e.turnover for e in gst.entries if e.turnover > 0
+        )
+        repeated = {t: c for t, c in turnover_counts.items() if c >= 2}
+        if len(repeated) > 0:
+            total_repeated = sum(repeated.values())
+            if total_repeated / len(gst.entries) > 0.5:
+                alerts.append(FraudAlert(
+                    alert_type="repeated_turnover",
+                    severity="high",
+                    title="Repeated Identical Turnovers",
+                    description=(
+                        "Multiple GST periods show identical turnover "
+                        "amounts. This is unusual for genuine business "
+                        "and may indicate copy-paste filings."
+                    ),
+                    evidence=f"Repeated values: {dict(repeated)}",
+                    confidence=0.65,
+                ))
+
     return alerts
 
 
@@ -148,23 +260,39 @@ def _check_bank_fraud(
     alerts: list[FraudAlert] = []
 
     # ── Round Number Transactions ──
-    if bank.total_credits > 0:
-        # Heuristic: if average credit is a very round number
-        if bank.credit_count > 0:
-            avg_credit = bank.total_credits / bank.credit_count
-            if avg_credit > 100000 and avg_credit % 100000 == 0:
-                alerts.append(FraudAlert(
-                    alert_type="round_number_credits",
-                    severity="medium",
-                    title="Round-Number Credit Transactions",
-                    description=(
-                        "Average credit transaction is an exact "
-                        "round number, which may indicate "
-                        "fabricated or manipulated deposits."
-                    ),
-                    evidence=f"Avg credit: {avg_credit:,.0f}",
-                    confidence=0.5,
-                ))
+    if bank.total_credits > 0 and bank.credit_count > 0:
+        avg_credit = bank.total_credits / bank.credit_count
+        if avg_credit > 100000 and avg_credit % 100000 == 0:
+            alerts.append(FraudAlert(
+                alert_type="round_number_credits",
+                severity="medium",
+                title="Round-Number Credit Transactions",
+                description=(
+                    "Average credit transaction is an exact "
+                    "round number, which may indicate "
+                    "fabricated or manipulated deposits."
+                ),
+                evidence=f"Avg credit: {avg_credit:,.0f}",
+                confidence=0.5,
+            ))
+
+    # ── Large Individual Round Credits ──
+    if bank.total_credits > 0 and bank.credit_count > 0:
+        avg = bank.total_credits / bank.credit_count
+        if avg > 500000 and bank.credit_count < 10:
+            alerts.append(FraudAlert(
+                alert_type="few_large_credits",
+                severity="medium",
+                title="Few Large Credit Transactions",
+                description=(
+                    f"Only {bank.credit_count} credit transactions "
+                    f"totaling ₹{bank.total_credits:,.0f}. "
+                    f"Few large credits may indicate "
+                    f"lump-sum round-tripping."
+                ),
+                evidence=f"Avg credit: ₹{avg:,.0f}",
+                confidence=0.45,
+            ))
 
     # ── Cash Flow Stress ──
     if bank.total_credits > 0 and bank.lowest_balance < 0:
@@ -200,6 +328,28 @@ def _check_bank_fraud(
             confidence=0.65,
         ))
 
+    # ── Credit-Debit Symmetry (circular fund flow) ──
+    if bank.total_credits > 0 and bank.total_debits > 0:
+        symmetry = min(bank.total_credits, bank.total_debits) / max(
+            bank.total_credits, bank.total_debits
+        )
+        if symmetry > 0.95 and total_txns > 20:
+            alerts.append(FraudAlert(
+                alert_type="credit_debit_symmetry",
+                severity="high",
+                title="Credit-Debit Symmetry Detected",
+                description=(
+                    f"Credits and debits are {symmetry:.1%} symmetric. "
+                    f"Near-perfect symmetry in high-volume accounts "
+                    f"may indicate circular fund flow or layering."
+                ),
+                evidence=(
+                    f"Credits: ₹{bank.total_credits:,.0f}, "
+                    f"Debits: ₹{bank.total_debits:,.0f}"
+                ),
+                confidence=0.6,
+            ))
+
     return alerts
 
 
@@ -209,6 +359,43 @@ def _check_cross_fraud(
 ) -> list[FraudAlert]:
     """Cross-data fraud patterns."""
     alerts: list[FraudAlert] = []
+
+    # ── Revenue Mismatch ──
+    if gst.total_turnover > 0 and bank.total_credits > 0:
+        mismatch_pct = abs(
+            gst.total_turnover - bank.total_credits
+        ) / gst.total_turnover * 100
+        if mismatch_pct > 50:
+            alerts.append(FraudAlert(
+                alert_type="revenue_mismatch",
+                severity="critical",
+                title="Severe Revenue Mismatch",
+                description=(
+                    f"GST turnover and bank credits differ by "
+                    f"{mismatch_pct:.1f}%. Severe mismatch "
+                    f"indicates potential revenue manipulation."
+                ),
+                evidence=(
+                    f"GST: ₹{gst.total_turnover:,.0f}, "
+                    f"Bank: ₹{bank.total_credits:,.0f}"
+                ),
+                confidence=0.8,
+            ))
+        elif mismatch_pct > 25:
+            alerts.append(FraudAlert(
+                alert_type="revenue_mismatch",
+                severity="high",
+                title="Significant Revenue Mismatch",
+                description=(
+                    f"GST turnover and bank credits differ by "
+                    f"{mismatch_pct:.1f}%."
+                ),
+                evidence=(
+                    f"GST: ₹{gst.total_turnover:,.0f}, "
+                    f"Bank: ₹{bank.total_credits:,.0f}"
+                ),
+                confidence=0.7,
+            ))
 
     # ── Shell Company Indicator ──
     if gst.total_turnover > 0 and bank.average_balance > 0:
@@ -224,11 +411,27 @@ def _check_cross_fraud(
                     "the average balance — typical of shell "
                     "entities used for invoice trading."
                 ),
-                evidence=(
-                    f"Balance/Monthly turnover: {ratio:.4f}"
-                ),
+                evidence=f"Balance/Monthly turnover: {ratio:.4f}",
                 confidence=0.75,
             ))
+
+    # ── Revenue Inflation (GST > Bank) ──
+    if gst.total_turnover > bank.total_credits * 1.2:
+        alerts.append(FraudAlert(
+            alert_type="revenue_inflation",
+            severity="high",
+            title="Possible Revenue Inflation",
+            description=(
+                "GST reported turnover exceeds bank credits by >20%, "
+                "suggesting potential revenue inflation via "
+                "fake invoices."
+            ),
+            evidence=(
+                f"GST: ₹{gst.total_turnover:,.0f}, "
+                f"Bank: ₹{bank.total_credits:,.0f}"
+            ),
+            confidence=0.7,
+        ))
 
     # ── Credits far exceed reported GST turnover ──
     if gst.total_turnover > 0:

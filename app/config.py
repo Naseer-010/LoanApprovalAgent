@@ -13,9 +13,16 @@ class Settings(BaseSettings):
     GST_DIR: Path = UPLOAD_DIR / "gst"
     BANK_DIR: Path = UPLOAD_DIR / "bank_statements"
     LEGAL_DIR: Path = UPLOAD_DIR / "legal_docs"
+    CAM_OUTPUT_DIR: Path = BASE_DIR / "data" / "cam_reports"
+    ML_MODEL_DIR: Path = BASE_DIR / "data" / "models"
 
     # --- HuggingFace ---
     HUGGINGFACEHUB_API_TOKEN: str = "your_token_here"
+
+    # --- Research API Keys (optional — DuckDuckGo fallback) ---
+    GNEWS_API_KEY: str = ""
+    SERPER_API_KEY: str = ""
+    NEWSAPI_KEY: str = ""
 
     # --- Model IDs (swap these to change models) ---
     INGESTOR_MODEL: str = "mistralai/Mistral-7B-Instruct-v0.3"
@@ -42,3 +49,5 @@ ANNUAL_REPORT_DIR = settings.ANNUAL_REPORT_DIR
 GST_DIR = settings.GST_DIR
 BANK_DIR = settings.BANK_DIR
 LEGAL_DIR = settings.LEGAL_DIR
+CAM_OUTPUT_DIR = settings.CAM_OUTPUT_DIR
+ML_MODEL_DIR = settings.ML_MODEL_DIR

@@ -1,77 +1,72 @@
 """
-Web Researcher — LangChain agent with DuckDuckGo for secondary research.
+Web Researcher — multi-source research for company intelligence.
 
-Searches for company news, promoter litigation, MCA filings, eCourts
-cases, RBI regulatory impact, and sector analysis.
+Integrates GNews, Serper API, NewsAPI, and DuckDuckGo (fallback).
+Searches for company news, promoter litigation, fraud, bankruptcy,
+NCLT cases, and regulatory violations.
+
+Produces structured risk signals: litigation_risk, reputation_risk,
+sector_risk, regulatory_risk.
 """
 
 import json
 import logging
+from typing import Optional
 
-from langchain_classic.agents import AgentExecutor, create_react_agent
+import requests
 from langchain_community.tools import DuckDuckGoSearchResults
-from langchain_core.prompts import PromptTemplate
-from langchain_core.tools import Tool
 
-from app.core.llm import get_research_llm
+from app.config import settings
 from app.schemas.research import NewsItem, WebSearchRequest
 
 logger = logging.getLogger(__name__)
 
-RESEARCH_AGENT_PROMPT = PromptTemplate.from_template(
-    """You are a credit research analyst for Indian corporate lending.
-Research the company for credit appraisal purposes.
+# Risk signal keywords
+NEGATIVE_KEYWORDS = [
+    "fraud", "scam", "default", "bankruptcy", "insolvency", "nclt",
+    "litigation", "lawsuit", "arrest", "penalty", "violation", "ban",
+    "suspension", "blacklist", "money laundering", "wilful defaulter",
+    "npa", "non-performing", "regulatory action", "sebi order",
+    "rbi penalty", "enforcement directorate", "cbi", "ed raid",
+]
 
-You have access to the following tools:
-{tools}
+LITIGATION_KEYWORDS = [
+    "court", "litigation", "lawsuit", "nclt", "drt", "nclat",
+    "tribunal", "case filed", "legal dispute", "winding up",
+    "insolvency", "ibc", "legal proceedings",
+]
 
-Use the following format:
-
-Question: the research question you must answer
-Thought: think about what to search for
-Action: the action to take, should be one of [{tool_names}]
-Action Input: the input to the action
-Observation: the result of the action
-... (repeat Thought/Action/Action Input/Observation as needed)
-Thought: I now have enough information
-Final Answer: a JSON array of findings, each with keys: \
-title, source, snippet, category \
-(promoter|sector|regulatory|litigation|general), \
-sentiment (positive|neutral|negative)
-
-Begin!
-
-Question: {input}
-{agent_scratchpad}
-"""
-)
+REGULATORY_KEYWORDS = [
+    "rbi", "sebi", "mca", "regulatory", "compliance", "penalty",
+    "fine", "order", "circular", "notification", "guideline",
+]
 
 
 def run_web_research(
     request: WebSearchRequest,
 ) -> list[NewsItem]:
     """
-    Run secondary research on a company using web search.
+    Run multi-source research on a company.
 
-    Searches: company news, promoter background, sector,
-    regulatory, litigation, eCourts, MCA, RBI.
+    Sources (in order of priority):
+    1. GNews API (if key configured)
+    2. Serper API (if key configured)
+    3. NewsAPI (if key configured)
+    4. DuckDuckGo (always available fallback)
     """
-    search_tool = DuckDuckGoSearchResults(
-        name="web_search",
-        description=(
-            "Search the web for news, regulatory filings, "
-            "and litigation. Input: search query string."
-        ),
-        max_results=5,
-    )
-
-    tools = [search_tool]
     queries = _build_search_queries(request)
     all_findings: list[NewsItem] = []
 
     for query, category in queries:
-        findings = _search_and_parse(query, category, tools)
+        findings = _search_all_sources(query, category)
         all_findings.extend(findings)
+
+    # Classify sentiment based on keywords
+    for item in all_findings:
+        if item.sentiment == "neutral":
+            item.sentiment = _classify_sentiment(
+                f"{item.title} {item.snippet}"
+            )
 
     return all_findings
 
@@ -96,45 +91,44 @@ def _build_search_queries(
             f"{promoter} {company} promoter background India",
             "promoter",
         ))
-        # eCourts targeted search
         queries.append((
-            f"{promoter} court case litigation India "
-            f"eCourts NCLT DRT",
+            f"{promoter} court case litigation India NCLT DRT",
             "litigation",
         ))
 
     # Sector + RBI regulatory
     queries.append((
-        f"{sector} India sector outlook RBI regulatory "
-        f"impact 2024 2025",
+        f"{sector} India sector outlook RBI regulatory impact 2024 2025",
         "sector",
+    ))
+
+    # Fraud/negative news
+    queries.append((
+        f"{company} fraud allegation default NPA India",
+        "litigation",
     ))
 
     # MCA filings
     queries.append((
-        f"{company} MCA filing Ministry Corporate Affairs "
-        f"annual return ROC India",
+        f"{company} MCA filing Ministry Corporate Affairs India",
         "regulatory",
     ))
 
     # RBI regulatory impact
     queries.append((
-        f"RBI {sector} sector NPA circular regulatory "
-        f"action India",
+        f"RBI {sector} sector NPA circular regulatory action India",
         "regulatory",
     ))
 
     # Litigation — company level
     queries.append((
-        f"{company} litigation legal dispute court case "
-        f"NCLT IBC India",
+        f"{company} litigation legal dispute court case NCLT IBC India",
         "litigation",
     ))
 
-    # CIBIL / credit history
+    # Credit rating
     queries.append((
-        f"{company} credit rating CRISIL ICRA CARE "
-        f"credit history India",
+        f"{company} credit rating CRISIL ICRA CARE credit history India",
         "general",
     ))
 
@@ -147,80 +141,255 @@ def _build_search_queries(
     return queries
 
 
-def _search_and_parse(
+def _search_all_sources(
     query: str,
     category: str,
-    tools: list[Tool],
 ) -> list[NewsItem]:
-    """Run a single search query and parse results."""
-    try:
-        llm = get_research_llm()
-        agent = create_react_agent(
-            llm, tools, RESEARCH_AGENT_PROMPT,
-        )
-        executor = AgentExecutor(
-            agent=agent,
-            tools=tools,
-            max_iterations=3,
-            handle_parsing_errors=True,
-            verbose=False,
-        )
+    """Search across all configured sources."""
+    results: list[NewsItem] = []
 
-        result = executor.invoke({"input": query})
-        output = result.get("output", "")
-        return _parse_findings(output, category)
+    # Try GNews API
+    if settings.GNEWS_API_KEY:
+        results.extend(_search_gnews(query, category))
+
+    # Try Serper API
+    if settings.SERPER_API_KEY:
+        results.extend(_search_serper(query, category))
+
+    # Try NewsAPI
+    if settings.NEWSAPI_KEY:
+        results.extend(_search_newsapi(query, category))
+
+    # Fallback: DuckDuckGo (always available)
+    if not results:
+        results.extend(_search_duckduckgo(query, category))
+
+    return results
+
+
+def _search_gnews(query: str, category: str) -> list[NewsItem]:
+    """Search using GNews API."""
+    try:
+        from gnews import GNews
+
+        google_news = GNews(
+            language="en",
+            country="IN",
+            max_results=5,
+        )
+        articles = google_news.get_news(query)
+
+        items = []
+        for article in articles[:5]:
+            items.append(NewsItem(
+                title=article.get("title", ""),
+                source=article.get("publisher", {}).get("title", "GNews"),
+                snippet=article.get("description", "")[:500],
+                url=article.get("url", ""),
+                category=category,
+                sentiment="neutral",
+            ))
+        return items
 
     except Exception as e:
-        logger.error(
-            "Web research failed for '%s': %s", query, e,
+        logger.warning("GNews search failed: %s", e)
+        return []
+
+
+def _search_serper(query: str, category: str) -> list[NewsItem]:
+    """Search using Serper API."""
+    try:
+        resp = requests.post(
+            "https://google.serper.dev/search",
+            headers={
+                "X-API-KEY": settings.SERPER_API_KEY,
+                "Content-Type": "application/json",
+            },
+            json={"q": query, "gl": "in", "num": 5},
+            timeout=10,
         )
+        resp.raise_for_status()
+        data = resp.json()
+
+        items = []
+        for result in data.get("organic", [])[:5]:
+            items.append(NewsItem(
+                title=result.get("title", ""),
+                source="Serper",
+                snippet=result.get("snippet", "")[:500],
+                url=result.get("link", ""),
+                category=category,
+                sentiment="neutral",
+            ))
+
+        # Also check news results
+        for result in data.get("news", [])[:3]:
+            items.append(NewsItem(
+                title=result.get("title", ""),
+                source=result.get("source", "Serper News"),
+                snippet=result.get("snippet", "")[:500],
+                url=result.get("link", ""),
+                category=category,
+                sentiment="neutral",
+            ))
+
+        return items
+
+    except Exception as e:
+        logger.warning("Serper search failed: %s", e)
+        return []
+
+
+def _search_newsapi(query: str, category: str) -> list[NewsItem]:
+    """Search using NewsAPI."""
+    try:
+        resp = requests.get(
+            "https://newsapi.org/v2/everything",
+            params={
+                "q": query,
+                "language": "en",
+                "sortBy": "relevancy",
+                "pageSize": 5,
+                "apiKey": settings.NEWSAPI_KEY,
+            },
+            timeout=10,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+        items = []
+        for article in data.get("articles", [])[:5]:
+            items.append(NewsItem(
+                title=article.get("title", ""),
+                source=article.get("source", {}).get("name", "NewsAPI"),
+                snippet=article.get("description", "")[:500],
+                url=article.get("url", ""),
+                category=category,
+                sentiment="neutral",
+            ))
+        return items
+
+    except Exception as e:
+        logger.warning("NewsAPI search failed: %s", e)
+        return []
+
+
+def _search_duckduckgo(query: str, category: str) -> list[NewsItem]:
+    """Search using DuckDuckGo (always available fallback)."""
+    try:
+        search_tool = DuckDuckGoSearchResults(max_results=5)
+        raw_results = search_tool.invoke(query)
+
+        items = []
+        if isinstance(raw_results, str):
+            # Parse the string format
+            items.append(NewsItem(
+                title=f"Search: {query[:80]}",
+                source="DuckDuckGo",
+                snippet=raw_results[:500],
+                category=category,
+                sentiment="neutral",
+            ))
+        elif isinstance(raw_results, list):
+            for r in raw_results[:5]:
+                if isinstance(r, dict):
+                    items.append(NewsItem(
+                        title=r.get("title", query[:80]),
+                        source="DuckDuckGo",
+                        snippet=r.get("snippet", r.get("body", ""))[:500],
+                        url=r.get("link", r.get("href", "")),
+                        category=category,
+                        sentiment="neutral",
+                    ))
+
+        return items
+
+    except Exception as e:
+        logger.warning("DuckDuckGo search failed: %s", e)
         return [
             NewsItem(
                 title=f"Search: {query[:80]}",
-                snippet=f"Search failed: {e}",
+                snippet=f"All search sources failed: {e}",
                 category=category,
                 sentiment="neutral",
             )
         ]
 
 
-def _parse_findings(
-    output: str, default_category: str,
-) -> list[NewsItem]:
-    """Parse agent output into NewsItem objects."""
-    items: list[NewsItem] = []
+def _classify_sentiment(text: str) -> str:
+    """Classify text sentiment based on keyword analysis."""
+    text_lower = text.lower()
 
-    try:
-        start = output.find("[")
-        end = output.rfind("]")
-        if start != -1 and end != -1:
-            parsed = json.loads(output[start: end + 1])
-            for item in parsed:
-                items.append(
-                    NewsItem(
-                        title=item.get("title", ""),
-                        source=item.get("source", ""),
-                        snippet=item.get("snippet", ""),
-                        category=item.get(
-                            "category", default_category,
-                        ),
-                        sentiment=item.get(
-                            "sentiment", "neutral",
-                        ),
-                    )
-                )
-            return items
-    except (json.JSONDecodeError, TypeError):
-        pass
+    negative_hits = sum(
+        1 for kw in NEGATIVE_KEYWORDS if kw in text_lower
+    )
+    positive_keywords = [
+        "growth", "profit", "award", "expansion", "upgrade",
+        "strong", "positive", "success", "achievement",
+    ]
+    positive_hits = sum(
+        1 for kw in positive_keywords if kw in text_lower
+    )
 
-    if output.strip():
-        items.append(
-            NewsItem(
-                title="Research Finding",
-                snippet=output[:500],
-                category=default_category,
-                sentiment="neutral",
-            )
-        )
+    if negative_hits >= 2:
+        return "negative"
+    if negative_hits > positive_hits:
+        return "negative"
+    if positive_hits > negative_hits:
+        return "positive"
+    return "neutral"
 
-    return items
+
+def compute_risk_signals(
+    news_items: list[NewsItem],
+) -> dict[str, float]:
+    """
+    Compute structured risk signals from research findings.
+
+    Returns dict with:
+    - litigation_risk (0.0-1.0)
+    - reputation_risk (0.0-1.0)
+    - sector_risk (0.0-1.0)
+    - regulatory_risk (0.0-1.0)
+    """
+    if not news_items:
+        return {
+            "litigation_risk": 0.0,
+            "reputation_risk": 0.0,
+            "sector_risk": 0.0,
+            "regulatory_risk": 0.0,
+        }
+
+    litigation_count = 0
+    negative_count = 0
+    sector_negative = 0
+    regulatory_negative = 0
+
+    for item in news_items:
+        text = f"{item.title} {item.snippet}".lower()
+
+        # Litigation risk
+        if any(kw in text for kw in LITIGATION_KEYWORDS):
+            litigation_count += 1
+
+        # Reputation risk
+        if item.sentiment == "negative":
+            negative_count += 1
+
+        # Sector risk
+        if item.category == "sector" and item.sentiment == "negative":
+            sector_negative += 1
+
+        # Regulatory risk
+        if any(kw in text for kw in REGULATORY_KEYWORDS):
+            if item.sentiment == "negative":
+                regulatory_negative += 1
+
+    total = max(len(news_items), 1)
+
+    return {
+        "litigation_risk": min(1.0, litigation_count / max(total * 0.3, 1)),
+        "reputation_risk": min(1.0, negative_count / max(total * 0.5, 1)),
+        "sector_risk": min(1.0, sector_negative / max(total * 0.2, 1)),
+        "regulatory_risk": min(1.0, regulatory_negative / max(total * 0.2, 1)),
+    }

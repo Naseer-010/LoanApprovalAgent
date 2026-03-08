@@ -1,7 +1,11 @@
 """API routes for the Recommendation Engine (Pillar 3)."""
 
-from fastapi import APIRouter
+from pathlib import Path
 
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse
+
+from app.config import CAM_OUTPUT_DIR
 from app.schemas.recommendation import (
     CAMRequest,
     CreditAppraisalMemo,
@@ -31,5 +35,29 @@ def get_loan_decision(request: LoanDecisionRequest) -> LoanDecision:
 
 @router.post("/generate-cam")
 def generate_credit_memo(request: CAMRequest) -> CreditAppraisalMemo:
-    """Generate a full Credit Appraisal Memo."""
+    """Generate a full Credit Appraisal Memo with DOCX/PDF export."""
     return generate_cam(request)
+
+
+@router.get("/download-cam/{filename}")
+def download_cam(filename: str):
+    """Download a generated CAM file (DOCX or PDF)."""
+    filepath = CAM_OUTPUT_DIR / filename
+
+    if not filepath.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"CAM file '{filename}' not found",
+        )
+
+    media_type = (
+        "application/pdf" if filename.endswith(".pdf")
+        else "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
+
+    return FileResponse(
+        path=str(filepath),
+        filename=filename,
+        media_type=media_type,
+    )
+
