@@ -119,7 +119,7 @@ class FraudReport(BaseModel):
 # --- Indian Regulatory Checks ---
 
 class CIBILReport(BaseModel):
-    """Simulated CIBIL commercial credit report."""
+    """CIBIL commercial credit report (requires API integration)."""
     score: int = 0  # 300–900
     rating: str = ""
     credit_age_years: int = 0

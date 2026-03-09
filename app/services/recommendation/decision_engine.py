@@ -2,19 +2,23 @@
 Decision Engine — real financial modeling with deep explainability.
 
 Uses DSCR, ICR, Leverage Ratio, and other banking metrics alongside
-Five Cs scores, fraud data, and regulatory checks to produce a
-transparent, explainable lending recommendation with cited evidence.
+Five Cs scores, fraud data, ML credit risk model, and regulatory checks
+to produce a transparent, explainable lending recommendation.
 """
 
 import logging
 
 from app.schemas.recommendation import (
+    ExplainabilityReport,
     FinancialRatio,
     FinancialRatioReport,
     FiveCsScoreResponse,
     LoanDecision,
     LoanDecisionRequest,
 )
+from app.services.ml_model.credit_risk_model import predict_credit_risk
+from app.services.explainability.explainability import build_explainability_report
+from app.services.recommendation.risk_aggregator import compute_final_credit_risk
 
 logger = logging.getLogger(__name__)
 
@@ -86,12 +90,36 @@ def make_decision(request: LoanDecisionRequest) -> LoanDecision:
         weighted_score, request.risk_adjustments,
     )
 
+    # ── ML Credit Risk Model ──
+    ml_prediction = _run_ml_prediction(
+        request.financial_data,
+        request.fraud_data,
+        request.research_data,
+        request.promoter_data,
+        ratios,
+    )
+
     # ── Final Decision ──
     adjusted_grade = _grade_from_score(adjusted_score)
 
     # Ratio penalty: each failed ratio reduces score
     ratio_penalty = _ratio_penalty(ratios)
     final_score = max(0, adjusted_score - ratio_penalty)
+
+    # ML adjustment: high ML risk reduces final score
+    ml_risk = ml_prediction.get("credit_risk_probability", 0.5)
+    if ml_risk > 0.7:
+        final_score = max(0, final_score - 15)
+        reasons.append(
+            f"ML model indicates high credit risk ({ml_risk:.1%} probability)"
+        )
+    elif ml_risk > 0.5:
+        final_score = max(0, final_score - 5)
+    elif ml_risk < 0.3:
+        key_factors.append(
+            f"ML model indicates low credit risk ({ml_risk:.1%})"
+        )
+
     final_grade = _grade_from_score(final_score)
 
     # Critical overrides
@@ -107,6 +135,21 @@ def make_decision(request: LoanDecisionRequest) -> LoanDecision:
         decision = "REFER"
     else:
         decision = "APPROVE"
+
+    # Compute Final Credit Risk Score (aggregator)
+    fraud_score = request.fraud_data.get("fraud_score", 0.0)
+    promoter_risk_score = request.promoter_data.get("promoter_risk_score", 0.0)
+    sector_risk_score = request.sector_data.get("sector_risk_score", 0.0)
+    early_warning_score = request.early_warning_data.get("early_warning_score", 0.0)
+    
+    aggregator_result = compute_final_credit_risk(
+        five_cs_score=weighted_score,
+        fraud_score=fraud_score,
+        promoter_risk_score=promoter_risk_score,
+        sector_risk_score=sector_risk_score,
+        early_warning_score=early_warning_score,
+    )
+    final_credit_risk_score = aggregator_result["final_credit_risk_score"]
 
     # Build explanation
     explanation = _build_explanation(
@@ -125,6 +168,25 @@ def make_decision(request: LoanDecisionRequest) -> LoanDecision:
         final_grade, five_cs, request, ratios,
     )
 
+    # Build explainability report
+    decision_dict = {
+        "decision": decision,
+        "risk_grade": final_grade,
+        "confidence_score": min(final_score / 100, 1.0),
+        "rejection_reasons": reasons,
+        "key_factors": key_factors,
+        "conditions": conditions,
+    }
+    explainability_data = build_explainability_report(
+        decision=decision_dict,
+        financial_ratios=ratios.model_dump() if ratios else {},
+        five_cs=five_cs.model_dump() if five_cs else {},
+        fraud_data=request.fraud_data,
+        research_data=request.research_data,
+        ml_prediction=ml_prediction,
+    )
+    explainability = ExplainabilityReport(**explainability_data)
+
     return LoanDecision(
         company_name=request.company_name,
         decision=decision,
@@ -132,12 +194,15 @@ def make_decision(request: LoanDecisionRequest) -> LoanDecision:
         interest_rate=interest_rate,
         risk_premium=risk_premium,
         risk_grade=final_grade,
+        final_credit_risk_score=final_credit_risk_score,
         confidence_score=min(final_score / 100, 1.0),
         explanation=explanation,
         rejection_reasons=reasons,
         key_factors=key_factors,
         conditions=conditions,
         financial_ratios=ratios,
+        ml_risk_prediction=ml_prediction,
+        explainability=explainability,
     )
 
 
@@ -632,3 +697,68 @@ def _generate_conditions(
         conds.append("Standard lending terms and conditions apply")
 
     return conds
+
+
+def _run_ml_prediction(
+    financial_data: dict,
+    fraud_data: dict,
+    research_data: dict,
+    promoter_data: dict,
+    ratios: FinancialRatioReport,
+) -> dict:
+    """
+    Run the ML credit risk model with features extracted
+    from all available data sources.
+    """
+    try:
+        # Prepare ML features
+        features = {}
+
+        # DSCR from ratios
+        if ratios.dscr.value is not None:
+            features["dscr"] = ratios.dscr.value
+
+        # ICR from ratios
+        if ratios.icr.value is not None:
+            features["icr"] = ratios.icr.value
+
+        # Debt/Equity
+        if ratios.debt_to_equity.value is not None:
+            features["debt_to_equity"] = ratios.debt_to_equity.value
+        elif financial_data.get("debt_to_equity"):
+            features["debt_to_equity"] = financial_data["debt_to_equity"]
+
+        # Revenue growth
+        features["revenue_growth"] = financial_data.get("revenue_growth", 0.0)
+
+        # Current ratio
+        if ratios.current_ratio.value is not None:
+            features["current_ratio"] = ratios.current_ratio.value
+
+        # Fraud risk score
+        features["fraud_risk_score"] = fraud_data.get("fraud_score", 0.0)
+
+        # Litigation risk from research
+        risk_signals = research_data.get("risk_signals", {})
+        if isinstance(risk_signals, dict):
+            features["litigation_risk"] = risk_signals.get(
+                "litigation_risk", 0.0,
+            )
+
+        # Promoter risk
+        features["promoter_risk"] = promoter_data.get(
+            "promoter_risk_score", 0.0,
+        ) / 100.0  # Normalize from 0-100 to 0-1
+
+        return predict_credit_risk(features)
+
+    except Exception as e:
+        logger.error("ML prediction failed: %s", e)
+        return {
+            "credit_risk_probability": 0.5,
+            "risk_label": "unknown",
+            "feature_importances": {},
+            "shap_values": {},
+            "explanation": f"ML prediction failed: {e}",
+        }
+

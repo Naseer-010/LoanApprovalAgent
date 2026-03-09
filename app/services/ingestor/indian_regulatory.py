@@ -1,11 +1,11 @@
 """
-Indian Regulatory Checks — mock CIBIL, GSTR-2A/3B, MCA director analysis.
+Indian Regulatory Checks — CIBIL, GSTR-2A/3B, MCA director analysis.
 
-Simulates checks against Indian regulatory databases for hackathon demo.
-In production these would call real APIs (CIBIL, GST portal, MCA V3).
+All data derived from documents, APIs, or web research.
+No mock/simulated data — functions return "unavailable" status
+when real API connections are not configured.
 """
 
-import hashlib
 import logging
 
 from app.schemas.ingestor import (
@@ -27,13 +27,15 @@ def run_regulatory_checks(
     """
     Run consolidated Indian regulatory checks.
 
-    In production, these call real APIs. This version generates
-    deterministic mock data for demo/hackathon purposes.
+    CIBIL and MCA checks require real API integrations.
+    When APIs are not connected, returns clear "unavailable" status.
+    GSTR checks are computed from actual filed data.
     """
     flags: list[str] = []
 
-    cibil = _mock_cibil_check(company_name)
-    if cibil.score < 650:
+    # CIBIL check — requires real API
+    cibil = _cibil_check(company_name)
+    if cibil.score > 0 and cibil.score < 650:
         flags.append(
             f"CIBIL score {cibil.score} below 650 threshold"
         )
@@ -43,6 +45,7 @@ def run_regulatory_checks(
             f"in credit history"
         )
 
+    # GSTR mismatch — computed from actual data
     gstr = _check_gstr_mismatch(gst_data)
     if gstr.mismatch_percentage > 10:
         flags.append(
@@ -50,7 +53,10 @@ def run_regulatory_checks(
             f"{gstr.mismatch_percentage:.1f}%"
         )
 
-    directors = _mock_mca_director_checks(promoter_names or [])
+    # MCA director checks — requires real API
+    directors = _mca_director_checks(
+        company_name, promoter_names or [],
+    )
     for d in directors:
         if d.defaulter_flag:
             flags.append(
@@ -72,69 +78,38 @@ def run_regulatory_checks(
     )
 
 
-def _mock_cibil_check(company_name: str) -> CIBILReport:
+def _cibil_check(company_name: str) -> CIBILReport:
     """
-    Generate deterministic mock CIBIL commercial credit report.
+    CIBIL commercial credit check.
 
-    Uses hash of company name for reproducible demo scores.
+    Requires CIBIL API integration for production use.
+    Returns 'unavailable' status when API is not connected.
+
+    To integrate: implement HTTP call to CIBIL Connect API
+    with your CIBIL subscriber credentials.
     """
-    seed = int(
-        hashlib.md5(company_name.lower().encode()).hexdigest()[:8], 16
+    # TODO: Replace with actual CIBIL API call
+    # Example integration point:
+    # response = cibil_api.get_commercial_report(company_name)
+    # return CIBILReport(score=response.score, ...)
+
+    logger.info(
+        "CIBIL API not connected — returning unavailable status for '%s'",
+        company_name,
     )
 
-    # Score between 550–850 based on hash
-    score = 550 + (seed % 300)
-    overdue = 1 if seed % 7 == 0 else 0
-    defaults = []
-    if seed % 11 == 0:
-        defaults.append("Overdue on term loan (2022)")
-    if seed % 13 == 0:
-        defaults.append("Late payment on working capital (2023)")
-
-    if score >= 750:
-        rating = "A (Low Risk)"
-    elif score >= 700:
-        rating = "B (Moderate Risk)"
-    elif score >= 650:
-        rating = "C (Elevated Risk)"
-    else:
-        rating = "D (High Risk)"
-
-    credit_age = 3 + (seed % 15)
-    active = 2 + (seed % 6)
-    enquiries = seed % 5
-
-    if score >= 750:
-        assessment = (
-            "Strong credit profile with consistent repayment "
-            "history. No significant delinquencies observed."
-        )
-    elif score >= 700:
-        assessment = (
-            "Moderate credit profile. Minor delays noted in "
-            "repayment history but overall satisfactory."
-        )
-    elif score >= 650:
-        assessment = (
-            "Below-average credit profile. Some delinquencies "
-            "and payment irregularities require monitoring."
-        )
-    else:
-        assessment = (
-            "Weak credit profile with significant repayment "
-            "issues. High risk of default based on credit "
-            "history patterns."
-        )
-
     return CIBILReport(
-        score=score,
-        rating=rating,
-        credit_age_years=credit_age,
-        active_accounts=active,
-        overdue_accounts=overdue,
-        default_history=defaults,
-        enquiry_count_6m=enquiries,
-        assessment=assessment,
+        score=0,
+        rating="Not Available",
+        credit_age_years=0,
+        active_accounts=0,
+        overdue_accounts=0,
+        default_history=[],
+        enquiry_count_6m=0,
+        assessment=(
+            "CIBIL score unavailable — connect CIBIL API for "
+            "real credit bureau data. Score not fabricated."
+        ),
     )
 
 
@@ -142,98 +117,109 @@ def _check_gstr_mismatch(
     gst_data: GSTDataResponse | None,
 ) -> GSTRMismatch:
     """
-    Check GSTR-2A vs 3B mismatch.
+    Check GSTR-2A vs 3B mismatch using actual filed data.
 
-    GSTR-3B ITC claimed vs GSTR-2A eligible ITC (simulated as
-    90% of claimed, since we don't have actual 2A data).
+    When GSTR-2A data is not available, only flags based on
+    3B data anomalies (high ITC ratio, etc.) without fabricating
+    2A numbers.
     """
     if not gst_data or gst_data.total_itc_claimed == 0:
         return GSTRMismatch()
 
     claimed = gst_data.total_itc_claimed
-    # Simulate 2A eligible as 85-95% of claimed (common scenario)
-    seed = int(str(int(claimed))[:4]) if claimed > 0 else 0
-    eligible_pct = 0.85 + (seed % 10) * 0.01
-    eligible = claimed * eligible_pct
 
-    mismatch = claimed - eligible
-    mismatch_pct = (mismatch / claimed) * 100 if claimed > 0 else 0
+    # Without actual GSTR-2A data, we can only assess 3B anomalies
+    # Check if ITC claimed seems unreasonable relative to turnover
+    if gst_data.total_turnover > 0:
+        itc_to_turnover = claimed / gst_data.total_turnover
+        if itc_to_turnover > 0.18:  # 18% GST means ITC can't exceed ~18% of turnover
+            excess = (itc_to_turnover - 0.18) * gst_data.total_turnover
+            mismatch_pct = (excess / claimed) * 100 if claimed > 0 else 0
 
-    if mismatch_pct > 20:
-        flag = (
-            "CRITICAL: Large GSTR-2A/3B ITC mismatch. "
-            "Possible fraudulent ITC claims."
-        )
-    elif mismatch_pct > 10:
-        flag = (
-            "WARNING: Moderate ITC mismatch. Reconciliation "
-            "with suppliers recommended."
-        )
-    elif mismatch_pct > 5:
-        flag = (
-            "MINOR: Small ITC difference within acceptable "
-            "tolerance."
-        )
-    else:
-        flag = "No significant mismatch detected."
+            return GSTRMismatch(
+                itc_claimed_3b=round(claimed, 2),
+                itc_eligible_2a=0.0,  # Not available without 2A data
+                mismatch_amount=round(excess, 2),
+                mismatch_percentage=round(mismatch_pct, 2),
+                risk_flag=(
+                    f"ITC claimed ({itc_to_turnover:.1%} of turnover) exceeds "
+                    f"maximum GST rate of 18%. Potential over-claiming "
+                    f"of ₹{excess:,.0f}. GSTR-2A data needed for confirmation."
+                ),
+            )
+
+    # Check per-period ITC consistency
+    if len(gst_data.entries) >= 2:
+        itc_values = [e.itc_claimed for e in gst_data.entries if e.itc_claimed > 0]
+        if itc_values:
+            avg_itc = sum(itc_values) / len(itc_values)
+            max_dev = max(abs(v - avg_itc) for v in itc_values)
+            if avg_itc > 0 and max_dev / avg_itc > 0.5:
+                return GSTRMismatch(
+                    itc_claimed_3b=round(claimed, 2),
+                    itc_eligible_2a=0.0,
+                    mismatch_amount=0.0,
+                    mismatch_percentage=0.0,
+                    risk_flag=(
+                        "Inconsistent ITC claims across periods — "
+                        "variance exceeds 50%. May indicate selective "
+                        "or opportunistic ITC claiming. "
+                        "GSTR-2A reconciliation recommended."
+                    ),
+                )
 
     return GSTRMismatch(
         itc_claimed_3b=round(claimed, 2),
-        itc_eligible_2a=round(eligible, 2),
-        mismatch_amount=round(mismatch, 2),
-        mismatch_percentage=round(mismatch_pct, 2),
-        risk_flag=flag,
+        itc_eligible_2a=0.0,
+        mismatch_amount=0.0,
+        mismatch_percentage=0.0,
+        risk_flag=(
+            "GSTR-2A data not available — unable to perform "
+            "full 2A/3B reconciliation. Connect GST API for "
+            "complete analysis."
+        ),
     )
 
 
-def _mock_mca_director_checks(
+def _mca_director_checks(
+    company_name: str,
     promoter_names: list[str],
 ) -> list[MCADirectorCheck]:
     """
-    Mock MCA director status checks.
+    MCA director status checks.
 
-    Uses hash of director name for reproducible demo data.
+    Requires MCA V3 API integration for production use.
+    Returns 'unavailable' status for each director when
+    API is not connected.
+
+    To integrate: implement HTTP call to MCA V3 API
+    with your registered credentials.
     """
+    # TODO: Replace with actual MCA V3 API call
+    # Example:
+    # response = mca_api.search_director(din=din)
+    # return MCADirectorCheck(...)
+
     results = []
     for name in promoter_names[:5]:
         if not name.strip():
             continue
-        seed = int(
-            hashlib.md5(name.lower().encode()).hexdigest()[:8], 16
+
+        logger.info(
+            "MCA API not connected — returning unavailable for director '%s'",
+            name,
         )
-        din = f"{10000000 + seed % 90000000}"
-        linked = 1 + (seed % 5)
-
-        # ~10% chance of being flagged
-        defaulter = seed % 10 == 0
-        status = "Disqualified" if seed % 15 == 0 else "Active"
-
-        if defaulter:
-            detail = (
-                f"Director {name} has been flagged as a "
-                f"defaulter. History shows involvement in "
-                f"loan default at a previous company."
-            )
-        elif status == "Disqualified":
-            detail = (
-                f"Director {name} is disqualified by MCA "
-                f"under Section 164(2) for non-filing of "
-                f"annual returns."
-            )
-        else:
-            detail = (
-                f"Director {name} has an active DIN with "
-                f"{linked} company linkage(s). No adverse "
-                f"findings in MCA records."
-            )
 
         results.append(MCADirectorCheck(
             director_name=name.strip(),
-            din=din,
-            status=status,
-            companies_linked=linked,
-            defaulter_flag=defaulter,
-            details=detail,
+            din="",
+            status="Unknown",
+            companies_linked=0,
+            defaulter_flag=False,
+            details=(
+                f"MCA data for {name} unavailable — connect MCA V3 API "
+                f"for director verification. Status not fabricated."
+            ),
         ))
 
     return results
@@ -246,14 +232,24 @@ def _assess_regulatory_risk(
     flags: list[str],
 ) -> str:
     """Determine overall regulatory risk level."""
-    if cibil.score < 600 or any(d.defaulter_flag for d in directors):
+    # If CIBIL is available and poor
+    if cibil.score > 0 and cibil.score < 600:
         return "high"
+    if any(d.defaulter_flag for d in directors):
+        return "high"
+
     if (
-        cibil.score < 700
+        (cibil.score > 0 and cibil.score < 700)
         or gstr.mismatch_percentage > 15
         or any(d.status == "Disqualified" for d in directors)
     ):
         return "medium"
+
     if len(flags) > 2:
         return "medium"
+
+    # If no real data available, return unknown
+    if cibil.score == 0 and not any(d.din for d in directors):
+        return "unknown"
+
     return "low"

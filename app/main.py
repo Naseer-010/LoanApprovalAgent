@@ -10,6 +10,7 @@ from app.routes import (
     recommendation_routes,
     research_routes,
     upload_routes,
+    agent_routes,
 )
 
 app = FastAPI(
@@ -41,6 +42,7 @@ app.include_router(ingestor_routes.router)
 app.include_router(research_routes.router)
 app.include_router(recommendation_routes.router)
 app.include_router(pipeline_routes.router)
+app.include_router(agent_routes.router)
 
 
 @app.get("/", tags=["Frontend"], include_in_schema=False)

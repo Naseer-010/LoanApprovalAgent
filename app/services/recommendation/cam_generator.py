@@ -1,16 +1,29 @@
 """
-CAM Generator — generates a structured Credit Appraisal Memo.
+CAM Generator — generates Credit Appraisal Memo in DOCX and PDF formats.
 
-Produces a comprehensive memo covering Company Overview, Financial Analysis,
-Five Cs Assessment, Research Findings, Risk Factors, and Recommendation.
+Produces a comprehensive memo covering all required sections:
+1. Executive Summary
+2. Borrower Profile
+3. Financial Analysis
+4. Fraud Detection Findings
+5. Promoter Risk Analysis
+6. Sector Outlook
+7. Five Cs Credit Assessment
+8. Loan Recommendation
+9. Risk Justification
+
+Exports as DOCX (python-docx) and PDF (reportlab).
 """
 
+import json
 import logging
 from datetime import datetime
+from pathlib import Path
 
 from langchain_core.prompts import ChatPromptTemplate
 
 from app.core.llm import get_recommendation_llm
+from app.config import CAM_OUTPUT_DIR
 from app.schemas.recommendation import (
     CAMRequest,
     CAMSection,
@@ -39,63 +52,79 @@ Write 3-5 concise paragraphs. Be factual and analytical. Include specific number
     ),
 ])
 
+# All required CAM sections
+CAM_SECTIONS = [
+    "Executive Summary",
+    "Borrower Profile",
+    "Financial Analysis",
+    "Fraud Detection Summary",
+    "Promoter Network Analysis",
+    "Sector Risk Intelligence",
+    "Early Warning Signals",
+    "Five Cs Credit Assessment",
+    "Explainable ML Decision",
+    "Loan Recommendation",
+    "Risk Justification",
+]
+
 
 def generate_cam(request: CAMRequest) -> CreditAppraisalMemo:
     """
-    Generate a full Credit Appraisal Memo from all available data.
-
-    Sections:
-    1. Executive Summary
-    2. Company Overview
-    3. Financial Analysis
-    4. Five Cs Assessment
-    5. Secondary Research Findings
-    6. Primary Due Diligence
-    7. Cross-Verification Results
-    8. Risk Factors
-    9. Recommendation
+    Generate a full Credit Appraisal Memo with DOCX and PDF export.
     """
     sections: list[CAMSection] = []
 
-    # Section definitions with their data sources
-    section_configs = [
-        ("Company Overview", {
-            "financial_data": request.financial_data,
-            "research_report": request.research_report,
-        }),
-        ("Financial Analysis", {
-            "financial_data": request.financial_data,
-            "cross_verification": request.cross_verification,
-        }),
-        ("Five Cs of Credit Assessment", {
-            "five_cs_scores": request.five_cs_scores,
-        }),
-        ("Secondary Research Findings", {
-            "research_report": request.research_report,
-        }),
-        ("Primary Due Diligence", {
-            "primary_insights": request.primary_insights,
-        }),
-        ("Cross-Verification & Anomaly Analysis", {
-            "cross_verification": request.cross_verification,
-        }),
-        ("Risk Factors & Mitigants", {
-            "five_cs_scores": request.five_cs_scores,
-            "research_report": request.research_report,
-            "cross_verification": request.cross_verification,
-        }),
-        ("Recommendation", {
+    # Map sections to their data sources
+    section_data_map = {
+        "Executive Summary": {
             "loan_decision": request.loan_decision,
             "five_cs_scores": request.five_cs_scores,
-        }),
-    ]
+            "financial_data": request.financial_data,
+        },
+        "Borrower Profile": {
+            "financial_data": request.financial_data,
+            "research_report": request.research_report,
+        },
+        "Financial Analysis": {
+            "financial_data": request.financial_data,
+            "cross_verification": request.cross_verification,
+        },
+        "Fraud Detection Summary": {
+            "cross_verification": request.cross_verification,
+        },
+        "Promoter Network Analysis": {
+            "promoter_network": request.promoter_network,
+            "research_report": request.research_report,
+        },
+        "Sector Risk Intelligence": {
+            "sector_risk": request.sector_risk,
+            "research_report": request.research_report,
+        },
+        "Early Warning Signals": {
+            "early_warning": request.early_warning,
+        },
+        "Five Cs Credit Assessment": {
+            "five_cs_scores": request.five_cs_scores,
+        },
+        "Explainable ML Decision": {
+            "explainability": request.loan_decision.get("explainability", {}),
+            "ml_risk_prediction": request.loan_decision.get("ml_risk_prediction", {}),
+            "final_credit_risk_score": request.loan_decision.get("final_credit_risk_score", 0.0),
+        },
+        "Loan Recommendation": {
+            "loan_decision": request.loan_decision,
+            "five_cs_scores": request.five_cs_scores,
+        },
+        "Risk Justification": {
+            "loan_decision": request.loan_decision,
+            "explainability": request.loan_decision.get("explainability", {}),
+        },
+    }
 
-    for title, data in section_configs:
+    for title in CAM_SECTIONS:
+        data = section_data_map.get(title, {})
         content = _generate_section(request.company_name, title, data)
         sections.append(CAMSection(title=title, content=content))
-
-    # Generate executive summary from all sections
-    executive_summary = _generate_executive_summary(request, sections)
 
     # Extract recommendation details
     decision = request.loan_decision
@@ -104,15 +133,28 @@ def generate_cam(request: CAMRequest) -> CreditAppraisalMemo:
     interest_rate = decision.get("interest_rate", 0.0)
     risk_grade = decision.get("risk_grade", "")
 
+    # Generate DOCX and PDF
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    safe_name = request.company_name.replace(" ", "_")[:30]
+
+    docx_path = _generate_docx(
+        request.company_name, sections, decision, timestamp, safe_name,
+    )
+    pdf_path = _generate_pdf(
+        request.company_name, sections, decision, timestamp, safe_name,
+    )
+
     return CreditAppraisalMemo(
         company_name=request.company_name,
         generated_at=datetime.now().isoformat(),
         sections=sections,
-        executive_summary=executive_summary,
+        executive_summary=sections[0].content if sections else "",
         recommendation=recommendation,
         risk_grade=risk_grade,
         recommended_amount=recommended_amount,
         interest_rate=interest_rate,
+        docx_path=docx_path,
+        pdf_path=pdf_path,
     )
 
 
@@ -122,7 +164,6 @@ def _generate_section(company_name: str, title: str, data: dict) -> str:
         llm = get_recommendation_llm()
         chain = CAM_PROMPT | llm
 
-        import json
         section_data = json.dumps(data, indent=2, default=str)[:3000]
 
         result = chain.invoke({
@@ -135,54 +176,223 @@ def _generate_section(company_name: str, title: str, data: dict) -> str:
 
     except Exception as e:
         logger.error("CAM section '%s' generation failed: %s", title, e)
-        return f"Section generation failed: {e}. Data available: {list(data.keys())}"
+        # Generate a data-based fallback
+        return _fallback_section(title, data)
 
 
-def _generate_executive_summary(
-    request: CAMRequest,
+def _fallback_section(title: str, data: dict) -> str:
+    """Generate a basic section from data when LLM fails."""
+    parts = [f"## {title}\n"]
+
+    if not data:
+        parts.append("No data available for this section.")
+        return "\n".join(parts)
+
+    for key, value in data.items():
+        if isinstance(value, dict):
+            parts.append(f"\n### {key.replace('_', ' ').title()}")
+            for k, v in value.items():
+                if v is not None:
+                    parts.append(f"- {k.replace('_', ' ').title()}: {v}")
+        elif isinstance(value, list):
+            parts.append(f"\n### {key.replace('_', ' ').title()}")
+            for item in value[:5]:
+                parts.append(f"- {item}")
+        elif value is not None:
+            parts.append(f"- {key.replace('_', ' ').title()}: {value}")
+
+    return "\n".join(parts)
+
+
+def _generate_docx(
+    company_name: str,
     sections: list[CAMSection],
+    decision: dict,
+    timestamp: str,
+    safe_name: str,
 ) -> str:
-    """Generate an executive summary from all CAM sections."""
+    """Generate DOCX file using python-docx."""
     try:
-        llm = get_recommendation_llm()
+        from docx import Document
+        from docx.shared import Inches, Pt, RGBColor
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
 
-        summary_prompt = ChatPromptTemplate.from_messages([
-            (
-                "system",
-                "You are a senior credit officer. Write a concise executive summary "
-                "(3-4 paragraphs) for a Credit Appraisal Memo. Highlight key findings, "
-                "risk assessment, and recommendation.",
-            ),
-            (
-                "human",
-                """Company: {company_name}
+        doc = Document()
 
-CAM sections:
-{sections_summary}
+        # Title
+        title = doc.add_heading(
+            "CREDIT APPRAISAL MEMO", level=0,
+        )
+        title.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
-Decision: {decision}
+        # Company name
+        company_para = doc.add_heading(company_name, level=1)
+        company_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
-Write the executive summary.
-""",
-            ),
-        ])
+        # Date
+        date_para = doc.add_paragraph(
+            f"Generated: {datetime.now().strftime('%d %B %Y, %H:%M')}",
+        )
+        date_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
-        sections_text = "\n\n".join(
-            f"### {s.title}\n{s.content[:300]}..." for s in sections
+        # Decision summary box
+        doc.add_heading("Decision Summary", level=2)
+        table = doc.add_table(rows=4, cols=2)
+        table.style = "Light Grid Accent 1"
+        cells = [
+            ("Decision", decision.get("decision", "REFER")),
+            ("Risk Grade", decision.get("risk_grade", "N/A")),
+            ("Recommended Amount", f"₹{decision.get('recommended_amount', 0):,.0f}"),
+            ("Interest Rate", f"{decision.get('interest_rate', 0):.2f}%"),
+        ]
+        for i, (label, value) in enumerate(cells):
+            table.rows[i].cells[0].text = label
+            table.rows[i].cells[1].text = str(value)
+
+        doc.add_paragraph("")
+
+        # Sections
+        for section in sections:
+            doc.add_heading(section.title, level=2)
+            for paragraph in section.content.split("\n"):
+                if paragraph.strip():
+                    doc.add_paragraph(paragraph.strip())
+
+        # Save
+        CAM_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        filename = f"CAM_{safe_name}_{timestamp}.docx"
+        filepath = CAM_OUTPUT_DIR / filename
+        doc.save(str(filepath))
+
+        logger.info("DOCX generated: %s", filepath)
+        return str(filepath)
+
+    except ImportError:
+        logger.warning("python-docx not available — DOCX generation skipped")
+        return ""
+    except Exception as e:
+        logger.error("DOCX generation failed: %s", e)
+        return ""
+
+
+def _generate_pdf(
+    company_name: str,
+    sections: list[CAMSection],
+    decision: dict,
+    timestamp: str,
+    safe_name: str,
+) -> str:
+    """Generate PDF file using reportlab."""
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import inch
+        from reportlab.lib.colors import HexColor
+        from reportlab.platypus import (
+            SimpleDocTemplate,
+            Paragraph,
+            Spacer,
+            Table,
+            TableStyle,
         )
 
-        import json
-        decision_text = json.dumps(request.loan_decision, default=str)[:500]
+        CAM_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        filename = f"CAM_{safe_name}_{timestamp}.pdf"
+        filepath = CAM_OUTPUT_DIR / filename
 
-        chain = summary_prompt | llm
-        result = chain.invoke({
-            "company_name": request.company_name,
-            "sections_summary": sections_text[:3000],
-            "decision": decision_text,
-        })
+        doc = SimpleDocTemplate(
+            str(filepath),
+            pagesize=A4,
+            topMargin=0.75 * inch,
+            bottomMargin=0.75 * inch,
+        )
 
-        return result.content if hasattr(result, "content") else str(result)
+        styles = getSampleStyleSheet()
 
+        # Custom styles
+        title_style = ParagraphStyle(
+            "CAMTitle",
+            parent=styles["Title"],
+            fontSize=20,
+            spaceAfter=6,
+            textColor=HexColor("#1a237e"),
+        )
+        heading_style = ParagraphStyle(
+            "CAMHeading",
+            parent=styles["Heading2"],
+            fontSize=14,
+            spaceAfter=6,
+            spaceBefore=12,
+            textColor=HexColor("#283593"),
+        )
+        body_style = ParagraphStyle(
+            "CAMBody",
+            parent=styles["Normal"],
+            fontSize=10,
+            spaceAfter=6,
+            leading=14,
+        )
+
+        elements = []
+
+        # Title
+        elements.append(Paragraph("CREDIT APPRAISAL MEMO", title_style))
+        elements.append(Paragraph(company_name, heading_style))
+        elements.append(Paragraph(
+            f"Generated: {datetime.now().strftime('%d %B %Y, %H:%M')}",
+            body_style,
+        ))
+        elements.append(Spacer(1, 12))
+
+        # Decision table
+        elements.append(Paragraph("Decision Summary", heading_style))
+        table_data = [
+            ["Parameter", "Value"],
+            ["Decision", decision.get("decision", "REFER")],
+            ["Risk Grade", decision.get("risk_grade", "N/A")],
+            ["Recommended Amount", f"₹{decision.get('recommended_amount', 0):,.0f}"],
+            ["Interest Rate", f"{decision.get('interest_rate', 0):.2f}%"],
+        ]
+        t = Table(table_data, colWidths=[200, 250])
+        t.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), HexColor("#1a237e")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), HexColor("#ffffff")),
+            ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 10),
+            ("BOTTOMPADDING", (0, 0), (-1, 0), 8),
+            ("TOPPADDING", (0, 0), (-1, -1), 6),
+            ("GRID", (0, 0), (-1, -1), 0.5, HexColor("#cccccc")),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [
+                HexColor("#f5f5f5"),
+                HexColor("#ffffff"),
+            ]),
+        ]))
+        elements.append(t)
+        elements.append(Spacer(1, 12))
+
+        # Sections
+        for section in sections:
+            elements.append(Paragraph(section.title, heading_style))
+            for para in section.content.split("\n"):
+                if para.strip():
+                    # Escape XML special chars
+                    safe_para = (
+                        para.strip()
+                        .replace("&", "&amp;")
+                        .replace("<", "&lt;")
+                        .replace(">", "&gt;")
+                    )
+                    elements.append(Paragraph(safe_para, body_style))
+            elements.append(Spacer(1, 8))
+
+        doc.build(elements)
+        logger.info("PDF generated: %s", filepath)
+        return str(filepath)
+
+    except ImportError:
+        logger.warning("reportlab not available — PDF generation skipped")
+        return ""
     except Exception as e:
-        logger.error("Executive summary generation failed: %s", e)
-        return f"Executive summary generation failed: {e}"
+        logger.error("PDF generation failed: %s", e)
+        return ""

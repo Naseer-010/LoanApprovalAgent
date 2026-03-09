@@ -28,7 +28,35 @@ class PromoterRiskReport(BaseModel):
     linked_companies: list[dict] = Field(default_factory=list)
     litigation_flags: list[str] = Field(default_factory=list)
     overall_promoter_risk: str = "low"
+    promoter_risk_score: float = 0.0  # 0-100, derived from graph + research
     details: list[dict] = Field(default_factory=list)
+    graph_structure: dict | None = None
+    graph_risk_signals: dict | None = None
+
+
+class SectorRiskReport(BaseModel):
+    """Sector risk intelligence output."""
+    company_name: str
+    sector: str
+    sector_risk_score: float = 0.0
+    risk_level: str = "unknown"
+    sector_headwinds: list[dict] = Field(default_factory=list)
+    regulatory_changes: list[dict] = Field(default_factory=list)
+    macro_risks: list[dict] = Field(default_factory=list)
+    sector_summary: str = ""
+    findings_analyzed: int = 0
+    negative_signal_ratio: float = 0.0
+
+
+class EarlyWarningReport(BaseModel):
+    """Early warning system output."""
+    company_name: str
+    early_warning_score: float = 0.0
+    risk_level: str = "LOW"
+    triggers: list[dict] = Field(default_factory=list)
+    signal_details: dict = Field(default_factory=dict)
+    signals_monitored: int = 0
+    active_warnings: int = 0
 
 
 class FullAnalysisResponse(BaseModel):
@@ -49,6 +77,8 @@ class FullAnalysisResponse(BaseModel):
     research_report: ResearchReport | None = None
     primary_insights: PrimaryInsightsResponse | None = None
     promoter_risk: PromoterRiskReport | None = None
+    sector_risk: SectorRiskReport | None = None
+    early_warning: EarlyWarningReport | None = None
 
     # Pillar 3 — Recommendation Engine
     five_cs_scores: FiveCsScoreResponse | None = None

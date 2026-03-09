@@ -3,6 +3,16 @@
 from pydantic import BaseModel, Field
 
 
+# --- Risk Signals ---
+
+class RiskSignals(BaseModel):
+    """Structured risk signals derived from research."""
+    litigation_risk: float = 0.0  # 0.0 - 1.0
+    reputation_risk: float = 0.0  # 0.0 - 1.0
+    sector_risk: float = 0.0  # 0.0 - 1.0
+    regulatory_risk: float = 0.0  # 0.0 - 1.0
+
+
 # --- Web Search ---
 
 class WebSearchRequest(BaseModel):
@@ -34,6 +44,7 @@ class ResearchReport(BaseModel):
     litigation_findings: list[str] = Field(default_factory=list)
     overall_sentiment: str = "neutral"
     risk_flags: list[str] = Field(default_factory=list)
+    risk_signals: RiskSignals = Field(default_factory=RiskSignals)
     ai_summary: str = ""
 
 

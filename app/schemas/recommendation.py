@@ -66,6 +66,19 @@ class FiveCsScoreResponse(BaseModel):
     ai_commentary: str = ""
 
 
+# --- Explainability ---
+
+class ExplainabilityReport(BaseModel):
+    """Structured reasoning for a loan decision."""
+    decision: str = "REFER"
+    decision_reasoning: list[dict] = Field(default_factory=list)
+    risk_factors: list[dict] = Field(default_factory=list)
+    financial_drivers: list[dict] = Field(default_factory=list)
+    research_signals: list[dict] = Field(default_factory=list)
+    ml_explanation: dict | None = None
+    confidence_basis: list[str] = Field(default_factory=list)
+
+
 # --- Loan Decision ---
 
 class LoanDecisionRequest(BaseModel):
@@ -79,6 +92,8 @@ class LoanDecisionRequest(BaseModel):
     fraud_data: dict = Field(default_factory=dict)
     regulatory_data: dict = Field(default_factory=dict)
     promoter_data: dict = Field(default_factory=dict)
+    sector_data: dict = Field(default_factory=dict)
+    early_warning_data: dict = Field(default_factory=dict)
 
 
 class LoanDecision(BaseModel):
@@ -89,6 +104,7 @@ class LoanDecision(BaseModel):
     interest_rate: float = 0.0
     risk_premium: float = 0.0
     risk_grade: str = ""
+    final_credit_risk_score: float = 0.0
     confidence_score: float = 0.0
     explanation: str = ""
     rejection_reasons: list[str] = Field(default_factory=list)
@@ -96,6 +112,10 @@ class LoanDecision(BaseModel):
     conditions: list[str] = Field(default_factory=list)
     financial_ratios: FinancialRatioReport = Field(
         default_factory=FinancialRatioReport,
+    )
+    ml_risk_prediction: dict = Field(default_factory=dict)
+    explainability: ExplainabilityReport = Field(
+        default_factory=ExplainabilityReport,
     )
 
 
@@ -117,6 +137,9 @@ class CAMRequest(BaseModel):
     loan_decision: dict = Field(default_factory=dict)
     primary_insights: list[dict] = Field(default_factory=list)
     cross_verification: dict = Field(default_factory=dict)
+    promoter_network: dict = Field(default_factory=dict)
+    sector_risk: dict = Field(default_factory=dict)
+    early_warning: dict = Field(default_factory=dict)
 
 
 class CreditAppraisalMemo(BaseModel):
@@ -129,3 +152,5 @@ class CreditAppraisalMemo(BaseModel):
     risk_grade: str = ""
     recommended_amount: float = 0.0
     interest_rate: float = 0.0
+    docx_path: str = ""  # Path to downloadable DOCX
+    pdf_path: str = ""  # Path to downloadable PDF

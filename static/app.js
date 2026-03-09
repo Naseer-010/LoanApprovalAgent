@@ -110,9 +110,52 @@ runBtn.addEventListener('click', async () => {
 
   setLoading(true);
   try {
-    const resp = await fetch('/pipeline/full-analysis', { method: 'POST', body: fd });
+    const resp = await fetch('/pipeline/investigate', { method: 'POST', body: fd });
     if (!resp.ok) throw new Error(`Server error ${resp.status}: ${await resp.text()}`);
-    renderResults(await resp.json());
+
+    resultsDiv.innerHTML = `
+      <div class="glass-card" id="timeline-card">
+        <div class="card-header">
+          <div class="card-icon blue">${icon('bolt')}</div>
+          <div>
+            <div class="card-title">Live Investigation Timeline</div>
+            <div class="card-description">Extracting intelligence from all available modules...</div>
+          </div>
+        </div>
+        <div id="investigation-timeline" class="timeline"></div>
+      </div>
+      <div id="final-results-container"></div>
+    `;
+    resultsDiv.classList.add('visible');
+    skeleton.classList.remove('visible');
+    resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let partial = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      partial += decoder.decode(value, { stream: true });
+      const lines = partial.split('\n\n');
+      partial = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.trim().startsWith('data: ')) {
+          try {
+            const payload = JSON.parse(line.trim().substring(6));
+            if (['in_progress', 'completed', 'error'].includes(payload.status)) {
+              updateTimelineUI(payload);
+            }
+            if (payload.result) {
+              renderResults(payload.result);
+            }
+          } catch (e) { console.error('SSE parse error:', e, line); }
+        }
+      }
+    }
   } catch (err) {
     resultsDiv.innerHTML = `
       <div class="glass-card" style="border-color:var(--danger);">
@@ -127,6 +170,30 @@ runBtn.addEventListener('click', async () => {
     resultsDiv.classList.add('visible');
   } finally { setLoading(false); }
 });
+
+function updateTimelineUI(data) {
+  const tl = document.getElementById('investigation-timeline');
+  if (!tl) return;
+  const safeId = data.step.replace(/[^a-zA-Z0-9]/g, '-');
+  let stepEl = document.getElementById(`step-${safeId}`);
+  if (!stepEl) {
+    stepEl = document.createElement('div');
+    stepEl.id = `step-${safeId}`;
+    stepEl.className = `timeline-step ${data.status}`;
+    stepEl.innerHTML = `
+      <div class="step-indicator"></div>
+      <div class="step-content">
+        <div class="step-title">${esc(data.step)}</div>
+        <div class="step-detail">${data.status === 'in_progress' ? 'Processing...' : data.status === 'error' ? esc(data.detail || 'Error occurred') : 'Completed'}</div>
+      </div>
+    `;
+    tl.appendChild(stepEl);
+  } else {
+    stepEl.className = `timeline-step ${data.status}`;
+    stepEl.querySelector('.step-detail').textContent = data.status === 'completed' ? 'Completed' : data.status === 'error' ? esc(data.detail || 'Error occurred') : 'Processing...';
+  }
+}
+
 
 function setLoading(on) {
   runBtn.disabled = on;
@@ -364,6 +431,64 @@ function renderResults(data) {
     if (pr.risk_flags?.length) {
       html += `<div class="tag-list" style="margin-top:12px;">${pr.risk_flags.map(f => `<span class="tag" style="border-color:var(--danger);color:var(--danger);">${esc(f)}</span>`).join('')}</div>`;
     }
+
+    // Graph container
+    if (pr.graph_structure && pr.graph_structure.nodes) {
+      html += `<div id="network-graph-container"></div>`;
+      setTimeout(() => {
+        const container = document.getElementById('network-graph-container');
+        if (container && window.vis) {
+          const data = {
+            nodes: new vis.DataSet(pr.graph_structure.nodes),
+            edges: new vis.DataSet(pr.graph_structure.edges)
+          };
+          const options = {
+            nodes: { shape: 'dot', font: { color: '#f1f5f9' }, scaling: { max: 20 } },
+            edges: { color: '#64748b' },
+            physics: { barnesHut: { gravitationalConstant: -3000 } }
+          };
+          new vis.Network(container, data, options);
+        }
+      }, 300);
+    }
+
+    html += `</div>`;
+  }
+
+  // ── Sector Risk Intelligence ──
+  if (data.sector_risk) {
+    const sr = data.sector_risk;
+    html += `
+      <div class="glass-card">
+        <div class="card-header">
+          <div class="card-icon blue">${icon('globe')}</div>
+          <div>
+            <div class="card-title">Sector Risk Intelligence -- ${esc(sr.sector)}</div>
+            <div class="card-description">Risk Score: ${sr.sector_risk_score.toFixed(0)}/100 | ${esc(sr.risk_level).toUpperCase()}</div>
+          </div>
+        </div>
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;">${esc(sr.sector_summary)}</div>`;
+    if (sr.sector_headwinds?.length) {
+      html += `<div class="tag-list">${sr.sector_headwinds.map(h => `<span class="tag" style="border-color:var(--warning);color:var(--warning);">${esc(h.risk_factor)}</span>`).join('')}</div>`;
+    }
+    html += `</div>`;
+  }
+
+  // ── Early Warning Signals ──
+  if (data.early_warning) {
+    const ew = data.early_warning;
+    html += `
+      <div class="glass-card" style="border-color:${ew.risk_level === 'HIGH' ? 'var(--danger)' : 'var(--border)'};">
+        <div class="card-header">
+          <div class="card-icon red">${icon('alertTriangle')}</div>
+          <div>
+            <div class="card-title">Early Warning System (EWS)</div>
+            <div class="card-description">Score: ${(ew.early_warning_score * 100).toFixed(0)}/100 | ${ew.active_warnings} Active Triggers</div>
+          </div>
+        </div>`;
+    if (ew.triggers?.length) {
+      html += `<div class="anomaly-list">${ew.triggers.map(t => `<div class="anomaly-item"><span class="severity-badge ${t.severity}">${t.severity}</span><div><div class="anomaly-text" style="font-weight:600;color:var(--text-primary);">${esc(t.signal)}</div><div class="anomaly-text">${esc(t.description)}</div></div></div>`).join('')}</div>`;
+    }
     html += `</div>`;
   }
 
@@ -498,9 +623,12 @@ function renderResults(data) {
     html += `</div></div>`;
   }
 
-  resultsDiv.innerHTML = html;
+  const target = document.getElementById('final-results-container') || resultsDiv;
+  target.innerHTML = html;
   resultsDiv.classList.add('visible');
-  resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (!document.getElementById('final-results-container')) {
+    resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 
   // Animate score bars
   requestAnimationFrame(() => {
