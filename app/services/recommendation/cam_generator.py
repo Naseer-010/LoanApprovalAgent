@@ -57,10 +57,12 @@ CAM_SECTIONS = [
     "Executive Summary",
     "Borrower Profile",
     "Financial Analysis",
+    "Working Capital Stress Analysis",
     "Fraud Detection Summary",
     "Promoter Network Analysis",
     "Sector Risk Intelligence",
     "Early Warning Signals",
+    "Borrower Historical Analysis",
     "Five Cs Credit Assessment",
     "Explainable ML Decision",
     "Loan Recommendation",
@@ -89,6 +91,10 @@ def generate_cam(request: CAMRequest) -> CreditAppraisalMemo:
             "financial_data": request.financial_data,
             "cross_verification": request.cross_verification,
         },
+        "Working Capital Stress Analysis": {
+            "working_capital": request.working_capital,
+            "financial_data": request.financial_data,
+        },
         "Fraud Detection Summary": {
             "cross_verification": request.cross_verification,
         },
@@ -102,6 +108,9 @@ def generate_cam(request: CAMRequest) -> CreditAppraisalMemo:
         },
         "Early Warning Signals": {
             "early_warning": request.early_warning,
+        },
+        "Borrower Historical Analysis": {
+            "historical_trust": request.historical_trust,
         },
         "Five Cs Credit Assessment": {
             "five_cs_scores": request.five_cs_scores,

@@ -14,6 +14,11 @@ class ExtractedFinancials(BaseModel):
     debt_to_equity: float | None = None
     current_ratio: float | None = None
     interest_coverage: float | None = None
+    # Working capital fields
+    cogs: float | None = None
+    accounts_receivable: float | None = None
+    accounts_payable: float | None = None
+    inventory: float | None = None
 
 
 class ExtractedRisks(BaseModel):

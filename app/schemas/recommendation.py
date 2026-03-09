@@ -94,6 +94,8 @@ class LoanDecisionRequest(BaseModel):
     promoter_data: dict = Field(default_factory=dict)
     sector_data: dict = Field(default_factory=dict)
     early_warning_data: dict = Field(default_factory=dict)
+    working_capital_data: dict = Field(default_factory=dict)
+    historical_trust_data: dict = Field(default_factory=dict)
 
 
 class LoanDecision(BaseModel):
@@ -140,6 +142,8 @@ class CAMRequest(BaseModel):
     promoter_network: dict = Field(default_factory=dict)
     sector_risk: dict = Field(default_factory=dict)
     early_warning: dict = Field(default_factory=dict)
+    working_capital: dict = Field(default_factory=dict)
+    historical_trust: dict = Field(default_factory=dict)
 
 
 class CreditAppraisalMemo(BaseModel):

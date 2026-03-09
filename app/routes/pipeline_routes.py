@@ -21,7 +21,6 @@ from app.schemas.ingestor import (
     DocumentAnalysisResponse,
     GSTDataResponse,
 )
-from app.schemas.pipeline import FullAnalysisResponse
 from app.schemas.recommendation import (
     CAMRequest,
     FiveCsScoreRequest,
@@ -72,7 +71,23 @@ from app.agents.sector_risk_agent import (
 from app.agents.early_warning_agent import (
     run_early_warning_analysis,
 )
+from app.agents.working_capital_agent import (
+    run_working_capital_analysis,
+)
+from app.agents.historical_trust_agent import (
+    run_historical_trust_analysis,
+)
 from app.services.research.web_researcher import run_web_research
+from app.services.database.borrower_db import store_application
+
+from app.schemas.pipeline import (
+    FullAnalysisResponse,
+    PromoterRiskReport,
+    SectorRiskReport,
+    EarlyWarningReport,
+    WorkingCapitalReport,
+    HistoricalTrustReport,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -112,6 +127,8 @@ def full_analysis(
     promoter_risk: PromoterRiskReport | None = None
     sector_risk: SectorRiskReport | None = None
     early_warning: EarlyWarningReport | None = None
+    working_capital: WorkingCapitalReport | None = None
+    historical_trust: HistoricalTrustReport | None = None
     five_cs: FiveCsScoreResponse | None = None
     decision: LoanDecision | None = None
 
@@ -283,9 +300,26 @@ def full_analysis(
                 "debt_to_equity": f.debt_to_equity,
                 "current_ratio": f.current_ratio,
                 "interest_coverage": f.interest_coverage,
+                "cogs": f.cogs,
+                "accounts_receivable": f.accounts_receivable,
+                "accounts_payable": f.accounts_payable,
+                "inventory": f.inventory,
             }.items()
             if v is not None
         }
+
+    # ── Working Capital Analysis ─────────────────
+
+    working_capital = None
+    try:
+        wc_dict = run_working_capital_analysis(
+            company_name, financial,
+        )
+        working_capital = WorkingCapitalReport(**wc_dict)
+        steps.append("working_capital_analysis")
+    except Exception as e:
+        logger.error("Working capital analysis failed: %s", e)
+        errors.append(f"Working capital: {e}")
 
     research_dict = research.model_dump() if research else {}
     insights_dict = (
@@ -321,6 +355,24 @@ def full_analysis(
         
     ew_dict = early_warning.model_dump() if early_warning else {}
 
+    # ── Historical Trust Analysis ────────────────
+
+    historical_trust = None
+    try:
+        ht_dict = run_historical_trust_analysis(company_name)
+        historical_trust = HistoricalTrustReport(**ht_dict)
+        steps.append("historical_trust_analysis")
+    except Exception as e:
+        logger.error("Historical trust failed: %s", e)
+        errors.append(f"Historical trust: {e}")
+
+    wc_dict = (
+        working_capital.model_dump() if working_capital else {}
+    )
+    ht_dict = (
+        historical_trust.model_dump() if historical_trust else {}
+    )
+
     try:
         score_req = FiveCsScoreRequest(
             company_name=company_name,
@@ -355,12 +407,56 @@ def full_analysis(
             promoter_data=promo_dict,
             sector_data=sector_dict,
             early_warning_data=ew_dict,
+            working_capital_data=wc_dict,
+            historical_trust_data=ht_dict,
         )
         decision = make_decision(decision_req)
         steps.append("loan_decision")
     except Exception as e:
         logger.error("Loan decision failed: %s", e)
         errors.append(f"Loan decision: {e}")
+
+    # ── Store Borrower History ────────────────────
+
+    try:
+        if decision:
+            wc_score = (
+                working_capital.working_capital_score
+                if working_capital else 0.0
+            )
+            store_application(
+                company_name=company_name,
+                risk_score=decision.final_credit_risk_score,
+                loan_amount_requested=requested_amount,
+                loan_amount_approved=decision.recommended_amount,
+                interest_rate=decision.interest_rate,
+                decision=decision.decision,
+                fraud_risk_score=(
+                    fraud_report.fraud_score if fraud_report else 0.0
+                ),
+                sector_risk_score=(
+                    sector_risk.sector_risk_score
+                    if sector_risk else 0.0
+                ),
+                promoter_risk_score=(
+                    promoter_risk.promoter_risk_score
+                    if promoter_risk else 0.0
+                ),
+                early_warning_score=(
+                    early_warning.early_warning_score
+                    if early_warning else 0.0
+                ),
+                five_cs_score=(
+                    five_cs.weighted_total if five_cs else 0.0
+                ),
+                working_capital_score=wc_score,
+                explanation_summary=(
+                    decision.explanation[:500]
+                    if decision.explanation else ""
+                ),
+            )
+    except Exception as e:
+        logger.error("Failed to store borrower history: %s", e)
 
     cam = None
     try:
@@ -381,6 +477,8 @@ def full_analysis(
             promoter_network=promo_dict,
             sector_risk=sector_dict,
             early_warning=ew_dict,
+            working_capital=wc_dict,
+            historical_trust=ht_dict,
         )
         cam = generate_cam(cam_req)
         steps.append("cam_generation")
@@ -405,6 +503,8 @@ def full_analysis(
         promoter_risk=promoter_risk,
         sector_risk=sector_risk,
         early_warning=early_warning,
+        working_capital=working_capital,
+        historical_trust=historical_trust,
         five_cs_scores=five_cs,
         loan_decision=decision,
         credit_memo=cam,
@@ -524,7 +624,6 @@ def investigate_pipeline(
         try:
             if sector:
                 sec_dict = run_sector_risk_analysis(company_name, sector)
-                from app.schemas.pipeline import SectorRiskReport
                 sector_risk = SectorRiskReport(**sec_dict)
             if notes_list:
                 insights = [PrimaryInsight(insight_type=n.get("type", "general"), observation=n.get("observation", n.get("text", "")), severity=n.get("severity", "neutral")) for n in notes_list if isinstance(n, dict)]
@@ -542,7 +641,6 @@ def investigate_pipeline(
         try:
             if promoter_list:
                 report_dict = run_promoter_network_analysis(company_name, promoter_list, sector, mca_data=None)
-                from app.schemas.pipeline import PromoterRiskReport
                 promoter_risk = PromoterRiskReport(**report_dict)
             yield f"data: {json.dumps({'step': 'Building Promoter Network Graph', 'status': 'completed'})}\n\n"
         except Exception as e:
@@ -553,7 +651,19 @@ def investigate_pipeline(
         financial = {}
         if doc_analysis and doc_analysis.financials:
             f = doc_analysis.financials
-            financial = {k: v for k, v in {"revenue": f.revenue, "net_profit": f.net_profit, "total_debt": f.total_debt, "ebitda": f.ebitda, "debt_to_equity": f.debt_to_equity, "current_ratio": f.current_ratio, "interest_coverage": f.interest_coverage}.items() if v is not None}
+            financial = {k: v for k, v in {"revenue": f.revenue, "net_profit": f.net_profit, "total_debt": f.total_debt, "ebitda": f.ebitda, "debt_to_equity": f.debt_to_equity, "current_ratio": f.current_ratio, "interest_coverage": f.interest_coverage, "cogs": f.cogs, "accounts_receivable": f.accounts_receivable, "accounts_payable": f.accounts_payable, "inventory": f.inventory}.items() if v is not None}
+
+        # Step 7a: Working Capital Analysis
+        working_capital = None
+        yield f"data: {json.dumps({'step': 'Analyzing Working Capital Stress', 'status': 'in_progress'})}\n\n"
+        await asyncio.sleep(0.1)
+        try:
+            wc_dict = run_working_capital_analysis(company_name, financial)
+            working_capital = WorkingCapitalReport(**wc_dict)
+            yield f"data: {json.dumps({'step': 'Analyzing Working Capital Stress', 'status': 'completed'})}\n\n"
+        except Exception as e:
+            logger.error(e)
+            yield f"data: {json.dumps({'step': 'Analyzing Working Capital Stress', 'status': 'error'})}\n\n"
 
         # Step 7: Early Warning Signals
         early_warning = None
@@ -561,12 +671,23 @@ def investigate_pipeline(
         await asyncio.sleep(0.1)
         try:
             ew_dict = run_early_warning_analysis(company_name=company_name, financial_data=financial, fraud_data=fraud_report.model_dump() if fraud_report else {}, research_data=research.model_dump() if research else {}, sector_risk=sector_risk.model_dump() if sector_risk else {})
-            from app.schemas.pipeline import EarlyWarningReport
             early_warning = EarlyWarningReport(**ew_dict)
             yield f"data: {json.dumps({'step': 'Detecting Early Warning Signals', 'status': 'completed'})}\n\n"
         except Exception as e:
             logger.error(e)
             yield f"data: {json.dumps({'step': 'Detecting Early Warning Signals', 'status': 'error'})}\n\n"
+
+        # Step 8a: Historical Trust Analysis
+        historical_trust = None
+        yield f"data: {json.dumps({'step': 'Querying Borrower History & Trust', 'status': 'in_progress'})}\n\n"
+        await asyncio.sleep(0.1)
+        try:
+            ht_dict = run_historical_trust_analysis(company_name)
+            historical_trust = HistoricalTrustReport(**ht_dict)
+            yield f"data: {json.dumps({'step': 'Querying Borrower History & Trust', 'status': 'completed'})}\n\n"
+        except Exception as e:
+            logger.error(e)
+            yield f"data: {json.dumps({'step': 'Querying Borrower History & Trust', 'status': 'error'})}\n\n"
 
         # Step 8: Recommendation Engine & ML Score
         five_cs = None
@@ -582,24 +703,47 @@ def investigate_pipeline(
             promo_dict = promoter_risk.model_dump() if promoter_risk else {}
             sector_dict = sector_risk.model_dump() if sector_risk else {}
             ew_dict = early_warning.model_dump() if early_warning else {}
+            wc_dict = working_capital.model_dump() if working_capital else {}
+            ht_dict = historical_trust.model_dump() if historical_trust else {}
 
             score_req = FiveCsScoreRequest(company_name=company_name, financial_data=financial, research_data=research_dict, primary_insights=insights_dict, cross_verification=cross_dict)
             five_cs = score_five_cs(score_req)
             risk_adj = [r.model_dump() for r in insights_resp.risk_adjustments] if insights_resp and insights_resp.risk_adjustments else []
             
-            decision_req = LoanDecisionRequest(company_name=company_name, requested_amount=requested_amount, five_cs_scores=five_cs, financial_data=financial, research_data=research_dict, risk_adjustments=risk_adj, fraud_data=fraud_dict, regulatory_data=reg_dict, promoter_data=promo_dict, sector_data=sector_dict, early_warning_data=ew_dict)
+            decision_req = LoanDecisionRequest(company_name=company_name, requested_amount=requested_amount, five_cs_scores=five_cs, financial_data=financial, research_data=research_dict, risk_adjustments=risk_adj, fraud_data=fraud_dict, regulatory_data=reg_dict, promoter_data=promo_dict, sector_data=sector_dict, early_warning_data=ew_dict, working_capital_data=wc_dict, historical_trust_data=ht_dict)
             decision = make_decision(decision_req)
             yield f"data: {json.dumps({'step': 'Executing Credit Recommendation & ML Engine', 'status': 'completed'})}\n\n"
         except Exception as e:
             logger.error(e)
             yield f"data: {json.dumps({'step': 'Executing Credit Recommendation & ML Engine', 'status': 'error'})}\n\n"
 
+        # Store borrower history
+        try:
+            if decision:
+                store_application(
+                    company_name=company_name,
+                    risk_score=decision.final_credit_risk_score,
+                    loan_amount_requested=requested_amount,
+                    loan_amount_approved=decision.recommended_amount,
+                    interest_rate=decision.interest_rate,
+                    decision=decision.decision,
+                    fraud_risk_score=fraud_report.fraud_score if fraud_report else 0.0,
+                    sector_risk_score=sector_risk.sector_risk_score if sector_risk else 0.0,
+                    promoter_risk_score=promoter_risk.promoter_risk_score if promoter_risk else 0.0,
+                    early_warning_score=early_warning.early_warning_score if early_warning else 0.0,
+                    five_cs_score=five_cs.weighted_total if five_cs else 0.0,
+                    working_capital_score=working_capital.working_capital_score if working_capital else 0.0,
+                    explanation_summary=decision.explanation[:500] if decision.explanation else "",
+                )
+        except Exception as e:
+            logger.error("Failed to store borrower history: %s", e)
+
         # Step 9: Generate CAM
         cam = None
         yield f"data: {json.dumps({'step': 'Generating CAM Report', 'status': 'in_progress'})}\n\n"
         await asyncio.sleep(0.1)
         try:
-            cam_req = CAMRequest(company_name=company_name, financial_data=financial, research_report=research_dict, five_cs_scores=(five_cs.model_dump() if five_cs else {}), loan_decision=(decision.model_dump() if decision else {}), primary_insights=[n for n in notes_list if isinstance(n, dict)], cross_verification=cross_dict, promoter_network=promo_dict, sector_risk=sector_dict, early_warning=ew_dict)
+            cam_req = CAMRequest(company_name=company_name, financial_data=financial, research_report=research_dict, five_cs_scores=(five_cs.model_dump() if five_cs else {}), loan_decision=(decision.model_dump() if decision else {}), primary_insights=[n for n in notes_list if isinstance(n, dict)], cross_verification=cross_dict, promoter_network=promo_dict, sector_risk=sector_dict, early_warning=ew_dict, working_capital=wc_dict, historical_trust=ht_dict)
             cam = generate_cam(cam_req)
             yield f"data: {json.dumps({'step': 'Generating CAM Report', 'status': 'completed'})}\n\n"
         except Exception as e:
@@ -620,6 +764,8 @@ def investigate_pipeline(
             promoter_risk=promoter_risk,
             sector_risk=sector_risk,
             early_warning=early_warning,
+            working_capital=working_capital,
+            historical_trust=historical_trust,
             five_cs_scores=five_cs,
             loan_decision=decision,
             credit_memo=cam,

@@ -1372,7 +1372,8 @@ select.form-input {
 
 .timeline-step .step-indicator {
   position: absolute;
-  left: -21px; /* Center over the 2px border */
+  left: -21px;
+  /* Center over the 2px border */
   top: 4px;
   width: 14px;
   height: 14px;
@@ -1419,9 +1420,23 @@ select.form-input {
 }
 
 @keyframes pulse {
-  0% { transform: scale(0.95); opacity: 0.8; box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
-  70% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 6px rgba(245, 158, 11, 0); }
-  100% { transform: scale(0.95); opacity: 0.8; box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+  0% {
+    transform: scale(0.95);
+    opacity: 0.8;
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4);
+  }
+
+  70% {
+    transform: scale(1);
+    opacity: 1;
+    box-shadow: 0 0 0 6px rgba(245, 158, 11, 0);
+  }
+
+  100% {
+    transform: scale(0.95);
+    opacity: 0.8;
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+  }
 }
 
 /* ── Promoter Network Graph ─────────────────────── */
@@ -1433,4 +1448,255 @@ select.form-input {
   border-radius: var(--radius-md);
   margin-top: 16px;
   overflow: hidden;
+}
+
+/* ── Working Capital Stress ──────────────────── */
+.wc-ccc-gauge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 0;
+  margin-bottom: 16px;
+}
+
+.ccc-circle {
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-primary);
+  border: 3px solid;
+  transition: border-color 0.3s;
+}
+
+.ccc-circle.good {
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.ccc-circle.moderate {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+.ccc-circle.poor {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.ccc-unit {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-muted);
+  display: block;
+  margin-top: -2px;
+}
+
+.ccc-label {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 8px;
+  font-weight: 500;
+}
+
+.wc-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.wc-metric-card {
+  background: var(--bg-glass);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  text-align: center;
+  transition: border-color 0.2s;
+}
+
+.wc-metric-card:hover {
+  border-color: var(--accent);
+}
+
+.wc-metric-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.wc-metric-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ── Historical Trust ────────────────────────── */
+.ht-trust-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 0;
+  margin-bottom: 16px;
+}
+
+.trust-circle {
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: 700;
+  border: 3px solid;
+  transition: all 0.3s;
+}
+
+.trust-circle.good {
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.trust-circle.moderate {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+.trust-circle.poor {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.trust-circle.unknown {
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+
+.trust-unit {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.trust-label {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 8px;
+  font-weight: 500;
+}
+
+.ht-trends {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.ht-trend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-glass);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.ht-trend-item.success {
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.ht-trend-item.danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.ht-trend-item.neutral {
+  border-color: var(--border);
+}
+
+.trend-arrow {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.ht-table-wrapper {
+  overflow-x: auto;
+  margin-top: 12px;
+}
+
+.ht-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.ht-table th {
+  padding: 10px 12px;
+  text-align: left;
+  background: var(--bg-glass);
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ht-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  color: var(--text-secondary);
+}
+
+.ht-table tr:hover td {
+  background: var(--bg-glass);
+}
+
+.decision-pill {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.decision-pill.APPROVE {
+  background: rgba(52, 211, 153, 0.15);
+  color: var(--success);
+}
+
+.decision-pill.REJECT {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--danger);
+}
+
+.decision-pill.REFER {
+  background: rgba(251, 191, 36, 0.15);
+  color: var(--warning);
+}
+
+.risk-badge.success {
+  color: var(--success);
+}
+
+.risk-badge.warning {
+  color: var(--warning);
+}
+
+.risk-badge.danger {
+  color: var(--danger);
 }

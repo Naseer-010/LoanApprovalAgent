@@ -492,7 +492,130 @@ function renderResults(data) {
     html += `</div>`;
   }
 
-  // ── Document Analysis ──
+  // ── Working Capital Stress ──
+  if (data.working_capital) {
+    const wc = data.working_capital;
+    const riskCls = wc.liquidity_risk_level === 'CRITICAL' ? 'danger' : wc.liquidity_risk_level === 'HIGH' ? 'danger' : wc.liquidity_risk_level === 'MODERATE' ? 'warning' : 'success';
+    html += `
+      <div class="glass-card" style="border-color:${wc.liquidity_risk_level === 'CRITICAL' || wc.liquidity_risk_level === 'HIGH' ? 'var(--danger)' : 'var(--border)'};">
+        <div class="card-header">
+          <div class="card-icon amber">${icon('gauge')}</div>
+          <div>
+            <div class="card-title">Working Capital Stress Analysis</div>
+            <div class="card-description">Liquidity: <span class="risk-badge ${riskCls}">${wc.liquidity_risk_level}</span> | Score: ${wc.working_capital_score.toFixed(0)}/100 | ${wc.data_completeness}</div>
+          </div>
+        </div>`;
+
+    // CCC Gauge
+    if (wc.cash_conversion_cycle != null) {
+      const cccVal = wc.cash_conversion_cycle;
+      const cccCls = cccVal < 60 ? 'good' : cccVal < 120 ? 'moderate' : 'poor';
+      html += `
+        <div class="wc-ccc-gauge">
+          <div class="ccc-circle ${cccCls}">${cccVal.toFixed(0)}<span class="ccc-unit">days</span></div>
+          <div class="ccc-label">Cash Conversion Cycle</div>
+        </div>`;
+    }
+
+    // Metric cards
+    const wcMetrics = [
+      { label: 'Receivable Days', value: wc.receivable_days, suffix: 'd' },
+      { label: 'Inventory Days', value: wc.inventory_days, suffix: 'd' },
+      { label: 'Payable Days', value: wc.payable_days, suffix: 'd' },
+    ].filter(m => m.value != null);
+    if (wcMetrics.length) {
+      html += `<div class="wc-metrics">${wcMetrics.map(m => `
+        <div class="wc-metric-card">
+          <div class="wc-metric-value">${m.value.toFixed(0)}${m.suffix}</div>
+          <div class="wc-metric-label">${m.label}</div>
+        </div>`).join('')}</div>`;
+    }
+
+    // Stress indicators
+    if (wc.stress_indicators?.length) {
+      html += `<div class="anomaly-list" style="margin-top:12px;">${wc.stress_indicators.map(s => `
+        <div class="anomaly-item">
+          <span class="severity-badge ${s.severity}">${s.severity}</span>
+          <div>
+            <div class="anomaly-text" style="font-weight:600;color:var(--text-primary);">${esc(s.signal)}</div>
+            <div class="anomaly-text">${esc(s.description)}</div>
+          </div>
+        </div>`).join('')}</div>`;
+    }
+
+    if (wc.explanation) {
+      html += `<div style="margin-top:12px;font-size:13px;color:var(--text-secondary);line-height:1.6;">${esc(wc.explanation)}</div>`;
+    }
+    html += `</div>`;
+  }
+
+  // ── Historical Borrower Trust ──
+  if (data.historical_trust) {
+    const ht = data.historical_trust;
+    const trustCls = ht.historical_trust_score >= 70 ? 'good' : ht.historical_trust_score >= 50 ? 'moderate' : ht.historical_trust_score > 0 ? 'poor' : 'unknown';
+    html += `
+      <div class="glass-card">
+        <div class="card-header">
+          <div class="card-icon indigo">${icon('history')}</div>
+          <div>
+            <div class="card-title">Borrower Historical Trust</div>
+            <div class="card-description">${ht.number_of_previous_applications} previous application(s) on record</div>
+          </div>
+        </div>`;
+
+    if (ht.number_of_previous_applications > 0) {
+      // Trust score badge
+      html += `
+        <div class="ht-trust-badge">
+          <div class="trust-circle ${trustCls}">${ht.historical_trust_score.toFixed(0)}<span class="trust-unit">/100</span></div>
+          <div class="trust-label">Historical Trust Score</div>
+        </div>`;
+
+      // Trend indicators
+      const trendIcon = (t) => t === 'improving' ? '↗' : t === 'worsening' ? '↘' : t === 'stable' ? '→' : '—';
+      const trendCls = (t) => t === 'improving' ? 'success' : t === 'worsening' ? 'danger' : 'neutral';
+      html += `
+        <div class="ht-trends">
+          <div class="ht-trend-item ${trendCls(ht.risk_score_trend)}">
+            <span class="trend-arrow">${trendIcon(ht.risk_score_trend)}</span>
+            <span>Risk Score: ${ht.risk_score_trend}</span>
+          </div>
+          <div class="ht-trend-item ${trendCls(ht.fraud_risk_trend)}">
+            <span class="trend-arrow">${trendIcon(ht.fraud_risk_trend)}</span>
+            <span>Fraud Risk: ${ht.fraud_risk_trend}</span>
+          </div>
+          <div class="ht-trend-item ${trendCls(ht.financial_stability_trend)}">
+            <span class="trend-arrow">${trendIcon(ht.financial_stability_trend)}</span>
+            <span>Financial Stability: ${ht.financial_stability_trend}</span>
+          </div>
+        </div>`;
+
+      // Previous applications table
+      if (ht.previous_applications?.length) {
+        html += `
+          <div class="ht-table-wrapper">
+            <table class="ht-table">
+              <thead><tr>
+                <th>Date</th><th>Decision</th><th>Risk</th><th>Requested</th><th>Approved</th><th>Five Cs</th>
+              </tr></thead>
+              <tbody>${ht.previous_applications.map(a => `
+                <tr>
+                  <td>${esc(a.date)}</td>
+                  <td><span class="decision-pill ${a.decision}">${a.decision}</span></td>
+                  <td>${a.risk_score}</td>
+                  <td>${a.amount_requested > 0 ? 'INR ' + fmtNum(a.amount_requested) : '--'}</td>
+                  <td>${a.amount_approved > 0 ? 'INR ' + fmtNum(a.amount_approved) : '--'}</td>
+                  <td>${a.five_cs}</td>
+                </tr>`).join('')}</tbody>
+            </table>
+          </div>`;
+      }
+    } else {
+      html += `<div style="padding:16px;font-size:13px;color:var(--text-muted);text-align:center;">${esc(ht.trend_summary)}</div>`;
+    }
+
+    html += `</div>`;
+  }
   if (data.document_analysis) {
     const da = data.document_analysis;
     html += `

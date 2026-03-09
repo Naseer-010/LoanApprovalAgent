@@ -196,10 +196,39 @@ def _compute_real_scores(
     if dte is not None:
         if dte < 1.0:
             capacity += 5
-        elif dte > 3.0:
-            capacity -= 10
         elif dte > 5.0:
             capacity -= 20
+        elif dte > 3.0:
+            capacity -= 10
+
+    # Working capital CCC impact on Capacity
+    ccc = financial_data.get("cash_conversion_cycle")
+    if ccc is None:
+        # Try getting CCC from raw working capital metrics
+        ar = financial_data.get("accounts_receivable")
+        inv = financial_data.get("inventory")
+        ap = financial_data.get("accounts_payable")
+        rev = financial_data.get("revenue")
+        cogs_val = financial_data.get("cogs")
+        if rev and rev > 0:
+            cogs_eff = cogs_val if (cogs_val and cogs_val > 0) else rev * 0.7
+            rec_d = (ar / rev * 365) if ar else 0
+            inv_d = (inv / cogs_eff * 365) if inv else 0
+            pay_d = (ap / cogs_eff * 365) if ap else 0
+            if ar is not None or inv is not None:
+                ccc = rec_d + inv_d - pay_d
+
+    if ccc is not None:
+        if ccc < 30:
+            capacity += 15
+        elif ccc < 60:
+            capacity += 8
+        elif ccc > 180:
+            capacity -= 20
+        elif ccc > 120:
+            capacity -= 12
+        elif ccc > 90:
+            capacity -= 5
 
     scores["Capacity"] = max(0, min(100, capacity))
 

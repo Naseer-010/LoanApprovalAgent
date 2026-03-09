@@ -120,6 +120,66 @@ def make_decision(request: LoanDecisionRequest) -> LoanDecision:
             f"ML model indicates low credit risk ({ml_risk:.1%})"
         )
 
+    # ── Working Capital Impact ──
+    wc_data = request.working_capital_data
+    ccc = wc_data.get("cash_conversion_cycle")
+    wc_risk = wc_data.get("liquidity_risk_level", "UNKNOWN")
+
+    if ccc is not None:
+        if ccc > 180:
+            final_score = max(0, final_score - 15)
+            reasons.append(
+                f"Critical working capital stress — CCC of "
+                f"{ccc:.0f} days indicates severe liquidity risk"
+            )
+        elif ccc > 120:
+            final_score = max(0, final_score - 8)
+            reasons.append(
+                f"High working capital stress — CCC of "
+                f"{ccc:.0f} days"
+            )
+        elif ccc < 60:
+            key_factors.append(
+                f"Healthy cash conversion cycle ({ccc:.0f} days)"
+            )
+    elif wc_risk == "CRITICAL":
+        final_score = max(0, final_score - 10)
+        reasons.append(
+            "Working capital stress indicators are critical"
+        )
+
+    # ── Historical Trust Blending ──
+    ht_data = request.historical_trust_data
+    hist_trust = ht_data.get("historical_trust_score", 0.0)
+    num_prev = ht_data.get(
+        "number_of_previous_applications", 0,
+    )
+    if num_prev > 0 and hist_trust > 0:
+        # Blend: 75% current + 25% historical
+        blended_score = (0.75 * final_score) + (
+            0.25 * hist_trust
+        )
+        final_score = round(blended_score, 2)
+        risk_trend = ht_data.get(
+            "risk_score_trend", "stable",
+        )
+        if risk_trend == "improving":
+            key_factors.append(
+                f"Returning borrower with improving risk "
+                f"trend ({num_prev} previous applications, "
+                f"trust score: {hist_trust:.0f}/100)"
+            )
+        elif risk_trend == "worsening":
+            reasons.append(
+                f"Returning borrower with worsening risk "
+                f"trend across {num_prev} applications"
+            )
+        else:
+            key_factors.append(
+                f"Returning borrower ({num_prev} previous "
+                f"applications, trust: {hist_trust:.0f}/100)"
+            )
+
     final_grade = _grade_from_score(final_score)
 
     # Critical overrides

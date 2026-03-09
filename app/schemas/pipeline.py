@@ -59,6 +59,33 @@ class EarlyWarningReport(BaseModel):
     active_warnings: int = 0
 
 
+class WorkingCapitalReport(BaseModel):
+    """Working capital stress analysis output."""
+    company_name: str
+    receivable_days: float | None = None
+    inventory_days: float | None = None
+    payable_days: float | None = None
+    cash_conversion_cycle: float | None = None
+    working_capital_score: float = 50.0
+    liquidity_risk_level: str = "UNKNOWN"
+    stress_indicators: list[dict] = Field(default_factory=list)
+    data_completeness: str = ""
+    explanation: str = ""
+    missing_data: list[str] = Field(default_factory=list)
+
+
+class HistoricalTrustReport(BaseModel):
+    """Historical borrower trust analysis output."""
+    company_name: str
+    number_of_previous_applications: int = 0
+    historical_trust_score: float = 0.0
+    risk_score_trend: str = "no_history"
+    fraud_risk_trend: str = "no_history"
+    financial_stability_trend: str = "no_history"
+    trend_summary: str = ""
+    previous_applications: list[dict] = Field(default_factory=list)
+
+
 class FullAnalysisResponse(BaseModel):
     """Unified response combining all pillar outputs."""
 
@@ -84,6 +111,10 @@ class FullAnalysisResponse(BaseModel):
     five_cs_scores: FiveCsScoreResponse | None = None
     loan_decision: LoanDecision | None = None
     credit_memo: CreditAppraisalMemo | None = None
+
+    # Phase 4 — Financial Intelligence
+    working_capital: WorkingCapitalReport | None = None
+    historical_trust: HistoricalTrustReport | None = None
 
     # Processing metadata
     steps_completed: list[str] = Field(default_factory=list)
