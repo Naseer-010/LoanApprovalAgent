@@ -9,89 +9,92 @@
     content="AI-powered corporate credit appraisal system for Indian lending — automates end-to-end Credit Appraisal Memo generation.">
   <link rel="stylesheet" href="/static/style.css">
   <link rel="icon"
-    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236366f1' stroke-width='2'><path d='M13 2L3 14h9l-1 8 10-12h-9l1-8z'/></svg>">
+    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236366f1' stroke-width='1.75'><path d='M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z'/><polyline points='3.29 7 12 12 20.71 7'/><line x1='12' y1='22' x2='12' y2='12'/></svg>">
 </head>
 
 <body>
-
+  <div id="interactive-bg"></div>
   <div class="app-container">
 
-    <!-- Header -->
-    <header class="app-header">
+    <!-- Hero Section -->
+    <header class="hero-section fade-in">
       <div class="logo-mark">
         <div class="logo-icon" id="logo-icon"></div>
-        <h1 class="app-title">Intelli-Credit</h1>
       </div>
-      <p class="app-subtitle">AI-Powered Corporate Credit Decisioning Engine — Automates end-to-end Credit Appraisal
-        Memo generation</p>
+      <h1 class="hero-title">Intelli-Credit<br /><span class="text-gradient">Decisioning Engine</span></h1>
+      <p class="hero-subtitle">Automated, AI-Powered Corporate Credit Appraisal exactly when you need it.</p>
     </header>
 
-    <!-- Company Information -->
-    <section class="glass-card" id="company-section">
-      <div class="card-header">
-        <div class="card-icon blue" id="icon-company"></div>
-        <div>
-          <div class="card-title">Company Information</div>
-          <div class="card-description">Basic details about the applicant company</div>
-        </div>
-      </div>
-      <div class="form-grid">
-        <div class="form-group">
-          <label class="form-label" for="company_name">COMPANY NAME *</label>
-          <input class="form-input" type="text" id="company_name" placeholder="e.g. Reliance Industries Ltd" required>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="sector">SECTOR / INDUSTRY</label>
-          <input class="form-input" type="text" id="sector" placeholder="e.g. Oil & Gas, NBFC, Steel">
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="promoter_names">PROMOTER NAMES</label>
-          <input class="form-input" type="text" id="promoter_names"
-            placeholder="Comma-separated, e.g. Mukesh Ambani, Nita Ambani">
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="requested_amount">REQUESTED LOAN AMOUNT (INR)</label>
-          <input class="form-input" type="number" id="requested_amount" placeholder="e.g. 50000000" min="0">
-        </div>
-      </div>
-    </section>
+    <!-- Main Content Grid -->
+    <div class="main-grid fade-in">
 
-    <!-- Document Upload -->
-    <section class="glass-card" id="upload-section">
-      <div class="card-header">
-        <div class="card-icon green" id="icon-upload"></div>
-        <div>
-          <div class="card-title">Document Upload</div>
-          <div class="card-description">Upload financial documents for analysis — all fields are optional</div>
+      <!-- Company Information -->
+      <section class="content-card" id="company-section">
+        <div class="card-header">
+          <div class="card-icon blue" id="icon-company"></div>
+          <div>
+            <div class="card-title">Company Information</div>
+            <div class="card-description">Basic details about the applicant company</div>
+          </div>
         </div>
-      </div>
-      <div class="upload-grid">
-        <div class="upload-zone" id="zone-annual" data-field="annual_report">
-          <div class="upload-icon" id="icon-annual"></div>
-          <div class="upload-title">Annual Report</div>
-          <div class="upload-hint">PDF files only</div>
-          <div class="upload-filename" id="fname-annual"></div>
-          <input type="file" id="file-annual" accept=".pdf">
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label" for="company_name">COMPANY NAME *</label>
+            <input class="form-input" type="text" id="company_name" placeholder="e.g. Reliance Industries Ltd" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="sector">SECTOR / INDUSTRY</label>
+            <input class="form-input" type="text" id="sector" placeholder="e.g. Oil & Gas, NBFC, Steel">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="promoter_names">PROMOTER NAMES</label>
+            <input class="form-input" type="text" id="promoter_names"
+              placeholder="Comma-separated, e.g. Mukesh Ambani, Nita Ambani">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="requested_amount">REQUESTED LOAN AMOUNT (INR)</label>
+            <input class="form-input" type="number" id="requested_amount" placeholder="e.g. 50000000" min="0">
+          </div>
         </div>
-        <div class="upload-zone" id="zone-gst" data-field="gst_file">
-          <div class="upload-icon" id="icon-gst"></div>
-          <div class="upload-title">GST Filing</div>
-          <div class="upload-hint">CSV, JSON, or PDF</div>
-          <div class="upload-filename" id="fname-gst"></div>
-          <input type="file" id="file-gst" accept=".csv,.json,.pdf">
+      </section>
+
+      <!-- Document Upload -->
+      <section class="content-card" id="upload-section">
+        <div class="card-header">
+          <div class="card-icon green" id="icon-upload"></div>
+          <div>
+            <div class="card-title">Document Upload</div>
+            <div class="card-description">Upload financial documents for analysis — all fields are optional</div>
+          </div>
         </div>
-        <div class="upload-zone" id="zone-bank" data-field="bank_file">
-          <div class="upload-icon" id="icon-bank"></div>
-          <div class="upload-title">Bank Statement</div>
-          <div class="upload-hint">CSV or PDF</div>
-          <div class="upload-filename" id="fname-bank"></div>
-          <input type="file" id="file-bank" accept=".csv,.pdf">
+        <div class="upload-grid">
+          <div class="upload-zone" id="zone-annual" data-field="annual_report">
+            <div class="upload-icon" id="icon-annual"></div>
+            <div class="upload-title">Annual Report</div>
+            <div class="upload-hint">PDF files only</div>
+            <div class="upload-filename" id="fname-annual"></div>
+            <input type="file" id="file-annual" accept=".pdf">
+          </div>
+          <div class="upload-zone" id="zone-gst" data-field="gst_file">
+            <div class="upload-icon" id="icon-gst"></div>
+            <div class="upload-title">GST Filing</div>
+            <div class="upload-hint">CSV, JSON, or PDF</div>
+            <div class="upload-filename" id="fname-gst"></div>
+            <input type="file" id="file-gst" accept=".csv,.json,.pdf">
+          </div>
+          <div class="upload-zone" id="zone-bank" data-field="bank_file">
+            <div class="upload-icon" id="icon-bank"></div>
+            <div class="upload-title">Bank Statement</div>
+            <div class="upload-hint">CSV or PDF</div>
+            <div class="upload-filename" id="fname-bank"></div>
+            <input type="file" id="file-bank" accept=".csv,.pdf">
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
+    </div> <!-- /main-grid -->
 
     <!-- Primary Insights -->
-    <section class="glass-card" id="insights-section">
+    <section class="content-card fade-in" id="insights-section">
       <div class="card-header">
         <div class="card-icon amber" id="icon-insights"></div>
         <div>
@@ -104,7 +107,7 @@
     </section>
 
     <!-- Action Bar -->
-    <div class="action-bar">
+    <div class="action-bar fade-in">
       <button class="btn btn-primary run-btn" id="run-analysis-btn" type="button">
         <span id="btn-text">Run Full Analysis</span>
         <div class="spinner" id="btn-spinner" style="display:none;"></div>

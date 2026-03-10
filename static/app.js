@@ -7,7 +7,7 @@
  */
 
 // ── Inject Static Icons ─────────────────────────
-document.getElementById('logo-icon').innerHTML = icon('bolt');
+document.getElementById('logo-icon').innerHTML = icon('logo');
 document.getElementById('icon-company').innerHTML = icon('building');
 document.getElementById('icon-upload').innerHTML = icon('document');
 document.getElementById('icon-insights').innerHTML = icon('pencil');
@@ -23,6 +23,47 @@ const skeleton = document.getElementById('skeleton-loader');
 const resultsDiv = document.getElementById('results-section');
 const insightList = document.getElementById('insights-list');
 const addInsight = document.getElementById('add-insight-btn');
+
+// ── Intersection Observer for Scroll Animations ──
+const observerOptions = {
+  root: null,
+  rootMargin: '0px',
+  threshold: 0.1
+};
+
+const observer = new IntersectionObserver((entries, observer) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('fade-in-visible');
+      // Optional: Stop observing once faded in
+      // observer.unobserve(entry.target);
+    }
+  });
+}, observerOptions);
+
+// Initialize observer when DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+});
+
+// ── Interactive Background & Card Gleam ─────────
+document.addEventListener('mousemove', (e) => {
+  // Global background
+  const bg = document.getElementById('interactive-bg');
+  if (bg) {
+    bg.style.setProperty('--mouse-x', `${e.clientX}px`);
+    bg.style.setProperty('--mouse-y', `${e.clientY}px`);
+  }
+
+  // Local card hover gleam
+  document.querySelectorAll('.content-card').forEach(card => {
+    const rect = card.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    card.style.setProperty('--card-mouse-x', `${x}px`);
+    card.style.setProperty('--card-mouse-y', `${y}px`);
+  });
+});
 
 // ── File Upload Handling ────────────────────────
 document.querySelectorAll('.upload-zone').forEach(zone => {
@@ -114,7 +155,7 @@ runBtn.addEventListener('click', async () => {
     if (!resp.ok) throw new Error(`Server error ${resp.status}: ${await resp.text()}`);
 
     resultsDiv.innerHTML = `
-      <div class="glass-card" id="timeline-card">
+      <div class="content-card fade-in" id="timeline-card">
         <div class="card-header">
           <div class="card-icon blue">${icon('bolt')}</div>
           <div>
@@ -158,7 +199,7 @@ runBtn.addEventListener('click', async () => {
     }
   } catch (err) {
     resultsDiv.innerHTML = `
-      <div class="glass-card" style="border-color:var(--danger);">
+      <div class="content-card fade-in" style="border-color:var(--danger);">
         <div class="card-header">
           <div class="card-icon red">${icon('alertTriangle')}</div>
           <div>
@@ -218,7 +259,7 @@ function renderResults(data) {
     const d = data.loan_decision;
     const dIcon = d.decision === 'APPROVE' ? icon('checkCircle') : d.decision === 'REJECT' ? icon('xCircle') : icon('minusCircle');
     html += `
-      <div class="decision-banner ${d.decision}">
+      <div class="decision-banner fade-in ${d.decision}">
         <div class="decision-label">Credit Decision</div>
         <div class="decision-verdict">${dIcon} ${d.decision}</div>
         <div class="decision-explanation">${esc(d.explanation)}</div>
@@ -233,13 +274,13 @@ function renderResults(data) {
 
     // Rejection reasons
     if (d.rejection_reasons?.length) {
-      html += `<div class="glass-card"><div class="card-header"><div class="card-icon red">${icon('alertTriangle')}</div><div><div class="card-title">Decision Reasons</div><div class="card-description">Why this decision was made — each factor cites specific data</div></div></div>`;
+      html += `<div class="content-card fade-in"><div class="card-header"><div class="card-icon red">${icon('alertTriangle')}</div><div><div class="card-title">Decision Reasons</div><div class="card-description">Why this decision was made — each factor cites specific data</div></div></div>`;
       html += `<div class="reasons-list">${d.rejection_reasons.map(r => `<div class="reason-item">${icon('xCircle')}<span>${esc(r)}</span></div>`).join('')}</div></div>`;
     }
 
     // Key factors & conditions
     if (d.key_factors?.length || d.conditions?.length) {
-      html += `<div class="glass-card">`;
+      html += `<div class="content-card fade-in">`;
       if (d.key_factors?.length) {
         html += `<div class="card-header"><div class="card-icon indigo">${icon('key')}</div><div><div class="card-title">Key Factors</div></div></div>`;
         html += `<div class="tag-list">${d.key_factors.map(f => `<span class="tag">${esc(f)}</span>`).join('')}</div>`;
@@ -258,7 +299,7 @@ function renderResults(data) {
     const ratios = [fr.dscr, fr.icr, fr.leverage, fr.current_ratio, fr.debt_to_equity, fr.ebitda_margin].filter(r => r);
     if (ratios.length) {
       html += `
-        <div class="glass-card">
+        <div class="content-card fade-in">
           <div class="card-header">
             <div class="card-icon purple">${icon('gauge')}</div>
             <div>
@@ -287,7 +328,7 @@ function renderResults(data) {
   if (data.five_cs_scores?.scores?.length) {
     const cs = data.five_cs_scores;
     html += `
-      <div class="glass-card">
+      <div class="content-card fade-in">
         <div class="card-header">
           <div class="card-icon purple">${icon('scales')}</div>
           <div>
@@ -314,7 +355,7 @@ function renderResults(data) {
   if (data.fraud_report && data.fraud_report.total_alerts > 0) {
     const fr = data.fraud_report;
     html += `
-      <div class="glass-card" style="border-color:${fr.overall_fraud_risk === 'critical' ? 'var(--danger)' : 'var(--border)'};">
+      <div class="content-card fade-in" style="border-color:${fr.overall_fraud_risk === 'critical' ? 'var(--danger)' : 'var(--border)'};">
         <div class="card-header">
           <div class="card-icon red">${icon('scanEye')}</div>
           <div>
@@ -340,7 +381,7 @@ function renderResults(data) {
   if (data.regulatory_checks) {
     const rc = data.regulatory_checks;
     html += `
-      <div class="glass-card">
+      <div class="content-card fade-in">
         <div class="card-header">
           <div class="card-icon blue">${icon('landmark')}</div>
           <div>
@@ -405,7 +446,7 @@ function renderResults(data) {
   if (data.promoter_risk && data.promoter_risk.promoters_analyzed > 0) {
     const pr = data.promoter_risk;
     html += `
-      <div class="glass-card">
+      <div class="content-card fade-in">
         <div class="card-header">
           <div class="card-icon amber">${icon('users')}</div>
           <div>
@@ -459,7 +500,7 @@ function renderResults(data) {
   if (data.sector_risk) {
     const sr = data.sector_risk;
     html += `
-      <div class="glass-card">
+      <div class="content-card fade-in">
         <div class="card-header">
           <div class="card-icon blue">${icon('globe')}</div>
           <div>
@@ -478,7 +519,7 @@ function renderResults(data) {
   if (data.early_warning) {
     const ew = data.early_warning;
     html += `
-      <div class="glass-card" style="border-color:${ew.risk_level === 'HIGH' ? 'var(--danger)' : 'var(--border)'};">
+      <div class="content-card fade-in" style="border-color:${ew.risk_level === 'HIGH' ? 'var(--danger)' : 'var(--border)'};">
         <div class="card-header">
           <div class="card-icon red">${icon('alertTriangle')}</div>
           <div>
@@ -497,7 +538,7 @@ function renderResults(data) {
     const wc = data.working_capital;
     const riskCls = wc.liquidity_risk_level === 'CRITICAL' ? 'danger' : wc.liquidity_risk_level === 'HIGH' ? 'danger' : wc.liquidity_risk_level === 'MODERATE' ? 'warning' : 'success';
     html += `
-      <div class="glass-card" style="border-color:${wc.liquidity_risk_level === 'CRITICAL' || wc.liquidity_risk_level === 'HIGH' ? 'var(--danger)' : 'var(--border)'};">
+      <div class="content-card fade-in" style="border-color:${wc.liquidity_risk_level === 'CRITICAL' || wc.liquidity_risk_level === 'HIGH' ? 'var(--danger)' : 'var(--border)'};">
         <div class="card-header">
           <div class="card-icon amber">${icon('gauge')}</div>
           <div>
@@ -554,7 +595,7 @@ function renderResults(data) {
     const ht = data.historical_trust;
     const trustCls = ht.historical_trust_score >= 70 ? 'good' : ht.historical_trust_score >= 50 ? 'moderate' : ht.historical_trust_score > 0 ? 'poor' : 'unknown';
     html += `
-      <div class="glass-card">
+      <div class="content-card fade-in">
         <div class="card-header">
           <div class="card-icon indigo">${icon('history')}</div>
           <div>
@@ -619,7 +660,7 @@ function renderResults(data) {
   if (data.document_analysis) {
     const da = data.document_analysis;
     html += `
-      <div class="glass-card">
+      <div class="content-card fade-in">
         <div class="card-header">
           <div class="card-icon blue">${icon('chartBar')}</div>
           <div>
@@ -650,7 +691,7 @@ function renderResults(data) {
   if (data.cross_verification) {
     const cv = data.cross_verification;
     html += `
-      <div class="glass-card">
+      <div class="content-card fade-in">
         <div class="card-header">
           <div class="card-icon amber">${icon('search')}</div>
           <div>
@@ -669,7 +710,7 @@ function renderResults(data) {
   if (data.research_report) {
     const rr = data.research_report;
     html += `
-      <div class="glass-card">
+      <div class="content-card fade-in">
         <div class="card-header">
           <div class="card-icon green">${icon('globe')}</div>
           <div>
@@ -690,7 +731,7 @@ function renderResults(data) {
   if (data.primary_insights) {
     const pi = data.primary_insights;
     html += `
-      <div class="glass-card">
+      <div class="content-card fade-in">
         <div class="card-header">
           <div class="card-icon amber">${icon('pencil')}</div>
           <div>
@@ -706,7 +747,7 @@ function renderResults(data) {
   if (data.credit_memo) {
     const cam = data.credit_memo;
     html += `
-      <div class="glass-card">
+      <div class="content-card fade-in">
         <div class="card-header">
           <div class="card-icon indigo">${icon('filePen')}</div>
           <div>
@@ -730,7 +771,7 @@ function renderResults(data) {
 
   // ── GST & Bank Data ──
   if (data.gst_data || data.bank_statement) {
-    html += `<div class="glass-card"><div class="card-header"><div class="card-icon blue">${icon('pieChart')}</div><div><div class="card-title">Parsed Financial Data</div></div></div><div class="stat-grid">`;
+    html += `<div class="content-card fade-in"><div class="card-header"><div class="card-icon blue">${icon('pieChart')}</div><div><div class="card-title">Parsed Financial Data</div></div></div><div class="stat-grid">`;
     if (data.gst_data) {
       const g = data.gst_data;
       html += `<div class="stat-item"><div class="stat-value">INR ${fmtNum(g.total_turnover)}</div><div class="stat-label">GST Turnover</div></div>
@@ -752,6 +793,9 @@ function renderResults(data) {
   if (!document.getElementById('final-results-container')) {
     resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
+
+  // Observe newly generated fade-in elements
+  target.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
 
   // Animate score bars
   requestAnimationFrame(() => {
