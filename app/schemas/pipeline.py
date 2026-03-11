@@ -86,6 +86,26 @@ class HistoricalTrustReport(BaseModel):
     previous_applications: list[dict] = Field(default_factory=list)
 
 
+class SwotReport(BaseModel):
+    """SWOT analysis output."""
+    company_name: str
+    strengths: list[str] = Field(default_factory=list)
+    weaknesses: list[str] = Field(default_factory=list)
+    opportunities: list[str] = Field(default_factory=list)
+    threats: list[str] = Field(default_factory=list)
+    summary: str = ""
+
+
+class PortfolioRiskReport(BaseModel):
+    """Portfolio performance risk output."""
+    company_name: str
+    portfolio_risk_score: float = 0.0
+    risk_level: str = "NOT_APPLICABLE"
+    metrics: dict = Field(default_factory=dict)
+    risk_signals: list[dict] = Field(default_factory=list)
+    summary: str = ""
+
+
 class FullAnalysisResponse(BaseModel):
     """Unified response combining all pillar outputs."""
 
@@ -115,6 +135,10 @@ class FullAnalysisResponse(BaseModel):
     # Phase 4 — Financial Intelligence
     working_capital: WorkingCapitalReport | None = None
     historical_trust: HistoricalTrustReport | None = None
+
+    # Phase 5 — Hackathon Extensions
+    swot_analysis: SwotReport | None = None
+    portfolio_risk: PortfolioRiskReport | None = None
 
     # Processing metadata
     steps_completed: list[str] = Field(default_factory=list)

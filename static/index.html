@@ -26,13 +26,20 @@
         Memo generation</p>
     </header>
 
-    <!-- Company Information -->
-    <section class="glass-card" id="company-section">
+    <!-- ═══ Multi-Step Wizard ═══ -->
+    <div class="wizard-steps" id="wizard-steps">
+      <div class="wizard-step active" data-step="1"><span class="step-num">1</span> Entity Info</div>
+      <div class="wizard-step" data-step="2"><span class="step-num">2</span> Loan Details</div>
+      <div class="wizard-step" data-step="3"><span class="step-num">3</span> Documents</div>
+    </div>
+
+    <!-- ═══ Step 1: Entity Information ═══ -->
+    <section class="glass-card wizard-panel active" id="step-1">
       <div class="card-header">
         <div class="card-icon blue" id="icon-company"></div>
         <div>
-          <div class="card-title">Company Information</div>
-          <div class="card-description">Basic details about the applicant company</div>
+          <div class="card-title">Entity Information</div>
+          <div class="card-description">Company and promoter details</div>
         </div>
       </div>
       <div class="form-grid">
@@ -41,23 +48,86 @@
           <input class="form-input" type="text" id="company_name" placeholder="e.g. Reliance Industries Ltd" required>
         </div>
         <div class="form-group">
+          <label class="form-label" for="cin">CIN</label>
+          <input class="form-input" type="text" id="cin" placeholder="e.g. L17110MH1973PLC019786">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="pan">PAN</label>
+          <input class="form-input" type="text" id="pan" placeholder="e.g. AAACR5055K">
+        </div>
+        <div class="form-group">
           <label class="form-label" for="sector">SECTOR / INDUSTRY</label>
           <input class="form-input" type="text" id="sector" placeholder="e.g. Oil & Gas, NBFC, Steel">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="sub_sector">SUB-SECTOR</label>
+          <input class="form-input" type="text" id="sub_sector" placeholder="e.g. Refining, Micro-lending">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="annual_turnover">ANNUAL TURNOVER (INR Cr)</label>
+          <input class="form-input" type="number" id="annual_turnover" placeholder="e.g. 5000" min="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="headquarters">HEADQUARTERS</label>
+          <input class="form-input" type="text" id="headquarters" placeholder="e.g. Mumbai, Maharashtra">
         </div>
         <div class="form-group">
           <label class="form-label" for="promoter_names">PROMOTER NAMES</label>
           <input class="form-input" type="text" id="promoter_names"
             placeholder="Comma-separated, e.g. Mukesh Ambani, Nita Ambani">
         </div>
-        <div class="form-group">
-          <label class="form-label" for="requested_amount">REQUESTED LOAN AMOUNT (INR)</label>
-          <input class="form-input" type="number" id="requested_amount" placeholder="e.g. 50000000" min="0">
-        </div>
+      </div>
+      <div class="wizard-nav">
+        <div></div>
+        <button class="btn btn-primary" type="button" onclick="wizardNext(2)">Next: Loan Details</button>
       </div>
     </section>
 
-    <!-- Document Upload -->
-    <section class="glass-card" id="upload-section">
+    <!-- ═══ Step 2: Loan Details ═══ -->
+    <section class="glass-card wizard-panel" id="step-2">
+      <div class="card-header">
+        <div class="card-icon purple" id="icon-loan"></div>
+        <div>
+          <div class="card-title">Loan Request Details</div>
+          <div class="card-description">Specify the loan facility being requested</div>
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label" for="loan_type">LOAN TYPE</label>
+          <select class="form-input" id="loan_type">
+            <option value="">Select type...</option>
+            <option value="Term Loan">Term Loan</option>
+            <option value="Working Capital">Working Capital</option>
+            <option value="Project Finance">Project Finance</option>
+            <option value="WCDL">WCDL</option>
+            <option value="Overdraft">Overdraft</option>
+            <option value="Letter of Credit">Letter of Credit</option>
+            <option value="Bank Guarantee">Bank Guarantee</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="requested_amount">REQUESTED AMOUNT (INR)</label>
+          <input class="form-input" type="number" id="requested_amount" placeholder="e.g. 50000000" min="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="tenure_months">TENURE (months)</label>
+          <input class="form-input" type="number" id="tenure_months" placeholder="e.g. 60" min="1">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="proposed_rate">PROPOSED INTEREST RATE (%)</label>
+          <input class="form-input" type="number" id="proposed_rate" placeholder="e.g. 9.5" step="0.1" min="0">
+        </div>
+      </div>
+      <div class="wizard-nav">
+        <button class="btn btn-ghost" type="button" onclick="wizardNext(1)">Back</button>
+        <button class="btn btn-primary" type="button" onclick="wizardNext(3)">Next: Documents</button>
+      </div>
+    </section>
+
+    <!-- ═══ Step 3: Document Upload ═══ -->
+    <section class="glass-card wizard-panel" id="step-3">
       <div class="card-header">
         <div class="card-icon green" id="icon-upload"></div>
         <div>
@@ -87,29 +157,51 @@
           <div class="upload-filename" id="fname-bank"></div>
           <input type="file" id="file-bank" accept=".csv,.pdf">
         </div>
-      </div>
-    </section>
-
-    <!-- Primary Insights -->
-    <section class="glass-card" id="insights-section">
-      <div class="card-header">
-        <div class="card-icon amber" id="icon-insights"></div>
-        <div>
-          <div class="card-title">Primary Due Diligence Notes</div>
-          <div class="card-description">Qualitative observations from factory visits, management interviews, etc.</div>
+        <div class="upload-zone" id="zone-alm" data-field="alm_file">
+          <div class="upload-icon" id="icon-alm"></div>
+          <div class="upload-title">ALM Report</div>
+          <div class="upload-hint">Asset Liability Management</div>
+          <div class="upload-filename" id="fname-alm"></div>
+          <input type="file" id="file-alm" accept=".pdf,.csv,.xlsx">
+        </div>
+        <div class="upload-zone" id="zone-shareholding" data-field="shareholding_file">
+          <div class="upload-icon" id="icon-shareholding"></div>
+          <div class="upload-title">Shareholding</div>
+          <div class="upload-hint">Shareholding Pattern</div>
+          <div class="upload-filename" id="fname-shareholding"></div>
+          <input type="file" id="file-shareholding" accept=".pdf,.csv,.xlsx">
+        </div>
+        <div class="upload-zone" id="zone-portfolio" data-field="portfolio_file">
+          <div class="upload-icon" id="icon-portfolio"></div>
+          <div class="upload-title">Portfolio Cuts</div>
+          <div class="upload-hint">Performance Data</div>
+          <div class="upload-filename" id="fname-portfolio"></div>
+          <input type="file" id="file-portfolio" accept=".pdf,.csv,.xlsx">
         </div>
       </div>
-      <div id="insights-list"></div>
-      <button class="btn btn-ghost btn-sm" id="add-insight-btn" type="button">+ Add Observation</button>
-    </section>
 
-    <!-- Action Bar -->
-    <div class="action-bar">
-      <button class="btn btn-primary run-btn" id="run-analysis-btn" type="button">
-        <span id="btn-text">Run Full Analysis</span>
-        <div class="spinner" id="btn-spinner" style="display:none;"></div>
-      </button>
-    </div>
+      <!-- Primary Insights -->
+      <div style="margin-top:24px;">
+        <div class="card-header">
+          <div class="card-icon amber" id="icon-insights"></div>
+          <div>
+            <div class="card-title">Primary Due Diligence Notes</div>
+            <div class="card-description">Qualitative observations from factory visits, management interviews, etc.
+            </div>
+          </div>
+        </div>
+        <div id="insights-list"></div>
+        <button class="btn btn-ghost btn-sm" id="add-insight-btn" type="button">+ Add Observation</button>
+      </div>
+
+      <div class="wizard-nav">
+        <button class="btn btn-ghost" type="button" onclick="wizardNext(2)">Back</button>
+        <button class="btn btn-primary run-btn" id="run-analysis-btn" type="button">
+          <span id="btn-text">Run Full Analysis</span>
+          <div class="spinner" id="btn-spinner" style="display:none;"></div>
+        </button>
+      </div>
+    </section>
 
     <!-- Skeleton Loader -->
     <div class="skeleton-container" id="skeleton-loader">
@@ -152,7 +244,7 @@
 
     <!-- Footer -->
     <footer class="app-footer">
-      <p>Intelli-Credit Engine v2.0 — AI-Powered Corporate Credit Appraisal</p>
+      <p>Intelli-Credit Engine v3.0 — AI-Powered Corporate Credit Appraisal</p>
     </footer>
 
   </div>

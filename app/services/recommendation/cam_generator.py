@@ -63,6 +63,8 @@ CAM_SECTIONS = [
     "Sector Risk Intelligence",
     "Early Warning Signals",
     "Borrower Historical Analysis",
+    "Portfolio Risk Analysis",
+    "SWOT Analysis",
     "Five Cs Credit Assessment",
     "Explainable ML Decision",
     "Loan Recommendation",
@@ -111,6 +113,17 @@ def generate_cam(request: CAMRequest) -> CreditAppraisalMemo:
         },
         "Borrower Historical Analysis": {
             "historical_trust": request.historical_trust,
+        },
+        "Portfolio Risk Analysis": {
+            "portfolio_data": request.loan_decision.get(
+                "portfolio_risk", {},
+            ),
+            "financial_data": request.financial_data,
+        },
+        "SWOT Analysis": {
+            "swot": request.loan_decision.get("swot", {}),
+            "financial_data": request.financial_data,
+            "sector_risk": request.sector_risk,
         },
         "Five Cs Credit Assessment": {
             "five_cs_scores": request.five_cs_scores,

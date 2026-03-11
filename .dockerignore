@@ -1,0 +1,9 @@
+venv/
+__pycache__/
+*.pyc
+.env
+.git/
+data/uploads/
+data/cam_reports/
+data/models/
+*.db

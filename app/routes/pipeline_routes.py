@@ -77,6 +77,8 @@ from app.agents.working_capital_agent import (
 from app.agents.historical_trust_agent import (
     run_historical_trust_analysis,
 )
+from app.agents.swot_agent import run_swot_analysis
+from app.agents.portfolio_agent import run_portfolio_analysis
 from app.services.research.web_researcher import run_web_research
 from app.services.database.borrower_db import store_application
 
@@ -373,6 +375,43 @@ def full_analysis(
         historical_trust.model_dump() if historical_trust else {}
     )
 
+    # ── Portfolio Analysis ─────────────────────────
+
+    portfolio_risk_result = None
+    try:
+        pf_dict = run_portfolio_analysis(
+            company_name, financial,
+        )
+        from app.schemas.pipeline import PortfolioRiskReport
+        portfolio_risk_result = PortfolioRiskReport(**pf_dict)
+        steps.append("portfolio_analysis")
+    except Exception as e:
+        logger.error("Portfolio analysis failed: %s", e)
+        errors.append(f"Portfolio analysis: {e}")
+
+    # ── SWOT Generation ───────────────────────────
+
+    swot_result = None
+    try:
+        swot_dict = run_swot_analysis(
+            company_name=company_name,
+            financial_data=financial,
+            research_data=research_dict,
+            fraud_data=fraud_dict,
+            sector_data=sector_dict,
+            working_capital_data=wc_dict,
+            portfolio_data=(
+                portfolio_risk_result.metrics
+                if portfolio_risk_result else {}
+            ),
+        )
+        from app.schemas.pipeline import SwotReport
+        swot_result = SwotReport(**swot_dict)
+        steps.append("swot_generation")
+    except Exception as e:
+        logger.error("SWOT generation failed: %s", e)
+        errors.append(f"SWOT generation: {e}")
+
     try:
         score_req = FiveCsScoreRequest(
             company_name=company_name,
@@ -505,6 +544,8 @@ def full_analysis(
         early_warning=early_warning,
         working_capital=working_capital,
         historical_trust=historical_trust,
+        swot_analysis=swot_result,
+        portfolio_risk=portfolio_risk_result,
         five_cs_scores=five_cs,
         loan_decision=decision,
         credit_memo=cam,
@@ -689,6 +730,59 @@ def investigate_pipeline(
             logger.error(e)
             yield f"data: {json.dumps({'step': 'Querying Borrower History & Trust', 'status': 'error'})}\n\n"
 
+        # Step 8b: Portfolio Analysis
+        portfolio_risk_result = None
+        yield f"data: {json.dumps({'step': 'Analyzing Portfolio Performance', 'status': 'in_progress'})}\n\n"
+        await asyncio.sleep(0.1)
+        try:
+            pf_dict = run_portfolio_analysis(
+                company_name, financial,
+            )
+            from app.schemas.pipeline import PortfolioRiskReport
+            portfolio_risk_result = PortfolioRiskReport(
+                **pf_dict,
+            )
+            yield f"data: {json.dumps({'step': 'Analyzing Portfolio Performance', 'status': 'completed'})}\n\n"
+        except Exception as e:
+            logger.error(e)
+            yield f"data: {json.dumps({'step': 'Analyzing Portfolio Performance', 'status': 'error'})}\n\n"
+
+        # Step 8c: SWOT Generation
+        swot_result = None
+        yield f"data: {json.dumps({'step': 'Generating SWOT Analysis', 'status': 'in_progress'})}\n\n"
+        await asyncio.sleep(0.1)
+        try:
+            swot_dict = run_swot_analysis(
+                company_name=company_name,
+                financial_data=financial,
+                research_data=(
+                    research.model_dump()
+                    if research else {}
+                ),
+                fraud_data=(
+                    fraud_report.model_dump()
+                    if fraud_report else {}
+                ),
+                sector_data=(
+                    sector_risk.model_dump()
+                    if sector_risk else {}
+                ),
+                working_capital_data=(
+                    working_capital.model_dump()
+                    if working_capital else {}
+                ),
+                portfolio_data=(
+                    portfolio_risk_result.metrics
+                    if portfolio_risk_result else {}
+                ),
+            )
+            from app.schemas.pipeline import SwotReport
+            swot_result = SwotReport(**swot_dict)
+            yield f"data: {json.dumps({'step': 'Generating SWOT Analysis', 'status': 'completed'})}\n\n"
+        except Exception as e:
+            logger.error(e)
+            yield f"data: {json.dumps({'step': 'Generating SWOT Analysis', 'status': 'error'})}\n\n"
+
         # Step 8: Recommendation Engine & ML Score
         five_cs = None
         decision = None
@@ -766,6 +860,8 @@ def investigate_pipeline(
             early_warning=early_warning,
             working_capital=working_capital,
             historical_trust=historical_trust,
+            swot_analysis=swot_result,
+            portfolio_risk=portfolio_risk_result,
             five_cs_scores=five_cs,
             loan_decision=decision,
             credit_memo=cam,

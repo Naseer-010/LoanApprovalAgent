@@ -6,6 +6,7 @@ from pathlib import Path
 
 from app.routes import (
     ingestor_routes,
+    onboarding_routes,
     pipeline_routes,
     recommendation_routes,
     research_routes,
@@ -38,6 +39,7 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 # Routers
 app.include_router(upload_routes.router)
+app.include_router(onboarding_routes.router)
 app.include_router(ingestor_routes.router)
 app.include_router(research_routes.router)
 app.include_router(recommendation_routes.router)

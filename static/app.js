@@ -9,11 +9,31 @@
 // ── Inject Static Icons ─────────────────────────
 document.getElementById('logo-icon').innerHTML = icon('bolt');
 document.getElementById('icon-company').innerHTML = icon('building');
+const iconLoan = document.getElementById('icon-loan');
+if (iconLoan) iconLoan.innerHTML = icon('pieChart');
 document.getElementById('icon-upload').innerHTML = icon('document');
 document.getElementById('icon-insights').innerHTML = icon('pencil');
 document.getElementById('icon-annual').innerHTML = icon('chartBar');
 document.getElementById('icon-gst').innerHTML = icon('receipt');
 document.getElementById('icon-bank').innerHTML = icon('bank');
+const almIcon = document.getElementById('icon-alm');
+if (almIcon) almIcon.innerHTML = icon('shield');
+const shIcon = document.getElementById('icon-shareholding');
+if (shIcon) shIcon.innerHTML = icon('users');
+const pfIcon = document.getElementById('icon-portfolio');
+if (pfIcon) pfIcon.innerHTML = icon('chartBar');
+
+// ── Wizard Navigation ───────────────────────────
+function wizardNext(step) {
+  document.querySelectorAll('.wizard-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.wizard-step').forEach(s => {
+    s.classList.remove('active');
+    if (parseInt(s.dataset.step) <= step) s.classList.add('active');
+  });
+  const panel = document.getElementById('step-' + step);
+  if (panel) { panel.classList.add('active'); panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+}
+window.wizardNext = wizardNext;
 
 // ── DOM References ──────────────────────────────
 const runBtn = document.getElementById('run-analysis-btn');
@@ -100,6 +120,25 @@ runBtn.addEventListener('click', async () => {
   const promoters = document.getElementById('promoter_names').value.split(',').map(s => s.trim()).filter(Boolean);
   fd.append('promoter_names', JSON.stringify(promoters));
   fd.append('primary_notes', JSON.stringify(collectInsights()));
+
+  // ── Entity Onboarding API call (fire-and-forget) ─────
+  try {
+    const onboardPayload = {
+      company_name: companyName,
+      cin: (document.getElementById('cin')?.value || '').trim(),
+      pan: (document.getElementById('pan')?.value || '').trim(),
+      sector: document.getElementById('sector').value.trim(),
+      sub_sector: (document.getElementById('sub_sector')?.value || '').trim(),
+      annual_turnover: parseFloat(document.getElementById('annual_turnover')?.value || '0'),
+      headquarters: (document.getElementById('headquarters')?.value || '').trim(),
+      loan_type: (document.getElementById('loan_type')?.value || '').trim(),
+      requested_amount: parseFloat(document.getElementById('requested_amount').value || '0'),
+      tenure_months: parseInt(document.getElementById('tenure_months')?.value || '0', 10),
+      proposed_rate: parseFloat(document.getElementById('proposed_rate')?.value || '0'),
+      promoter_names: promoters.join(', '),
+    };
+    fetch('/onboarding', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(onboardPayload) }).catch(() => { });
+  } catch (_e) { /* non-blocking */ }
 
   const annualFile = document.getElementById('file-annual');
   if (annualFile.files.length) fd.append('annual_report', annualFile.files[0]);
@@ -205,6 +244,7 @@ function setLoading(on) {
 
 // ── Render Results ──────────────────────────────
 function renderResults(data) {
+  _lastAnalysisData = data;
   let html = '';
 
   // Steps bar
@@ -616,135 +656,142 @@ function renderResults(data) {
 
     html += `</div>`;
   }
-  if (data.document_analysis) {
-    const da = data.document_analysis;
+  // ── SWOT Analysis ──
+  if (data.swot_analysis) {
+    const sw = data.swot_analysis;
     html += `
       <div class="glass-card">
         <div class="card-header">
-          <div class="card-icon blue">${icon('chartBar')}</div>
+          <div class="card-icon purple">${icon('search')}</div>
           <div>
-            <div class="card-title">Document Analysis -- ${esc(da.file_name)}</div>
-            <div class="card-description">${esc(da.summary || '')}</div>
-          </div>
-        </div>`;
-    const f = da.financials;
-    if (f) {
-      const metrics = [
-        { label: 'Revenue', value: f.revenue }, { label: 'Net Profit', value: f.net_profit },
-        { label: 'Total Debt', value: f.total_debt }, { label: 'EBITDA', value: f.ebitda },
-        { label: 'Debt/Equity', value: f.debt_to_equity }, { label: 'Current Ratio', value: f.current_ratio },
-        { label: 'ICR', value: f.interest_coverage },
-      ].filter(m => m.value != null);
-      if (metrics.length) {
-        html += `<div class="stat-grid">${metrics.map(m => `<div class="stat-item"><div class="stat-value">${typeof m.value === 'number' && m.value > 1000 ? 'INR ' + fmtNum(m.value) : m.value}</div><div class="stat-label">${m.label}</div></div>`).join('')}</div>`;
-      }
-    }
-    if (da.risks) {
-      const allRisks = [...(da.risks.key_risks || []).map(r => ({ text: r, type: 'Key Risk' })), ...(da.risks.contingent_liabilities || []).map(r => ({ text: r, type: 'Contingent' })), ...(da.risks.auditor_qualifications || []).map(r => ({ text: r, type: 'Auditor' }))];
-      if (allRisks.length) html += `<div class="anomaly-list" style="margin-top:16px;">${allRisks.map(r => `<div class="anomaly-item"><span class="severity-badge medium">${r.type}</span><span class="anomaly-text">${esc(r.text)}</span></div>`).join('')}</div>`;
-    }
-    html += `</div>`;
-  }
-
-  // ── Cross Verification ──
-  if (data.cross_verification) {
-    const cv = data.cross_verification;
-    html += `
-      <div class="glass-card">
-        <div class="card-header">
-          <div class="card-icon amber">${icon('search')}</div>
-          <div>
-            <div class="card-title">Cross-Verification -- ${cv.risk_level.toUpperCase()} Risk</div>
-            <div class="card-description">GST INR ${fmtNum(cv.gst_total_turnover)} vs Bank INR ${fmtNum(cv.bank_total_credits)} -- ${cv.discrepancy_percentage}% discrepancy</div>
-          </div>
-        </div>`;
-    if (cv.anomalies?.length) {
-      html += `<div class="anomaly-list">${cv.anomalies.map(a => `<div class="anomaly-item"><span class="severity-badge ${a.severity}">${a.severity}</span><div><div class="anomaly-text" style="font-weight:600;color:var(--text-primary);">${esc(a.anomaly_type.replace(/_/g, ' '))}</div><div class="anomaly-text">${esc(a.description)}</div></div></div>`).join('')}</div>`;
-    }
-    if (cv.ai_analysis) html += `<div style="margin-top:14px;font-size:13px;color:var(--text-secondary);white-space:pre-wrap;">${esc(cv.ai_analysis)}</div>`;
-    html += `</div>`;
-  }
-
-  // ── Research Report ──
-  if (data.research_report) {
-    const rr = data.research_report;
-    html += `
-      <div class="glass-card">
-        <div class="card-header">
-          <div class="card-icon green">${icon('globe')}</div>
-          <div>
-            <div class="card-title">Research Report -- ${rr.overall_sentiment} sentiment</div>
-            <div class="card-description">${esc(rr.ai_summary?.substring(0, 200) || '')}</div>
-          </div>
-        </div>`;
-    if (rr.news_items?.length) {
-      html += `<div class="news-list">${rr.news_items.slice(0, 8).map(n => `<div class="news-item"><div class="news-title">${esc(n.title)}</div><div class="news-snippet">${esc(n.snippet?.substring(0, 200) || '')}</div><div class="news-meta"><span class="news-tag category">${n.category}</span><span class="news-tag ${n.sentiment}">${n.sentiment}</span></div></div>`).join('')}</div>`;
-    }
-    if (rr.risk_flags?.length) {
-      html += `<div style="margin-top:14px;"><strong style="font-size:13px;color:var(--danger);">Risk Flags:</strong><div class="tag-list">${rr.risk_flags.map(f => `<span class="tag" style="border-color:var(--danger);color:var(--danger);">${esc(f.substring(0, 100))}</span>`).join('')}</div></div>`;
-    }
-    html += `</div>`;
-  }
-
-  // ── Primary Insights ──
-  if (data.primary_insights) {
-    const pi = data.primary_insights;
-    html += `
-      <div class="glass-card">
-        <div class="card-header">
-          <div class="card-icon amber">${icon('pencil')}</div>
-          <div>
-            <div class="card-title">Primary Insights Analysis</div>
-            <div class="card-description">${pi.insights_processed} observation(s) -- risk delta: ${pi.overall_risk_delta > 0 ? '+' : ''}${pi.overall_risk_delta.toFixed(2)}</div>
+            <div class="card-title">SWOT Analysis</div>
+            <div class="card-description">${esc(sw.summary || '')}</div>
           </div>
         </div>
-        <div style="font-size:13px;color:var(--text-secondary);white-space:pre-wrap;">${esc(pi.ai_interpretation || '')}</div>
+        <div class="swot-grid">
+          <div class="swot-quadrant swot-s"><div class="swot-label">Strengths</div>${(sw.strengths || []).map(s => '<div class="swot-item">' + esc(s) + '</div>').join('')}</div>
+          <div class="swot-quadrant swot-w"><div class="swot-label">Weaknesses</div>${(sw.weaknesses || []).map(s => '<div class="swot-item">' + esc(s) + '</div>').join('')}</div>
+          <div class="swot-quadrant swot-o"><div class="swot-label">Opportunities</div>${(sw.opportunities || []).map(s => '<div class="swot-item">' + esc(s) + '</div>').join('')}</div>
+          <div class="swot-quadrant swot-t"><div class="swot-label">Threats</div>${(sw.threats || []).map(s => '<div class="swot-item">' + esc(s) + '</div>').join('')}</div>
+        </div>
       </div>`;
   }
 
-  // ── Credit Appraisal Memo ──
-  if (data.credit_memo) {
-    const cam = data.credit_memo;
+  // ── Portfolio Risk ──
+  if (data.portfolio_risk && data.portfolio_risk.risk_level !== 'NOT_APPLICABLE') {
+    const pr = data.portfolio_risk;
+    const prColor = pr.risk_level === 'LOW' ? 'var(--success)' : pr.risk_level === 'MODERATE' ? 'var(--warning)' : 'var(--danger)';
     html += `
       <div class="glass-card">
         <div class="card-header">
-          <div class="card-icon indigo">${icon('filePen')}</div>
+          <div class="card-icon green">${icon('chartBar')}</div>
           <div>
-            <div class="card-title">Credit Appraisal Memo</div>
-            <div class="card-description">Generated at ${cam.generated_at || 'N/A'}</div>
+            <div class="card-title">Portfolio Performance Analysis</div>
+            <div class="card-description">${esc(pr.summary)}</div>
           </div>
-        </div>`;
-    if (cam.executive_summary) html += `<div style="margin-bottom:16px;font-size:13px;color:var(--text-secondary);line-height:1.7;white-space:pre-wrap;">${esc(cam.executive_summary)}</div>`;
-    if (cam.sections?.length) {
-      html += cam.sections.map((s, i) => `
-        <div class="cam-section ${i === 0 ? 'open' : ''}">
-          <div class="cam-section-header" onclick="this.parentElement.classList.toggle('open')">
-            <span>${esc(s.title)}</span>
-            <span class="chevron">&#9660;</span>
-          </div>
-          <div class="cam-section-body"><div class="cam-section-content">${esc(s.content)}</div></div>
-        </div>`).join('');
+        </div>
+        <div class="stat-grid">
+          <div class="stat-item"><div class="stat-value" style="color:${prColor}">${pr.portfolio_risk_score.toFixed(0)}/100</div><div class="stat-label">Portfolio Score (${pr.risk_level})</div></div>`;
+    const pm = pr.metrics || {};
+    if (pm.gross_npa_ratio != null) html += `<div class="stat-item"><div class="stat-value">${pm.gross_npa_ratio.toFixed(1)}%</div><div class="stat-label">GNPA Ratio</div></div>`;
+    if (pm.default_rate != null) html += `<div class="stat-item"><div class="stat-value">${pm.default_rate.toFixed(1)}%</div><div class="stat-label">Default Rate</div></div>`;
+    if (pm.recovery_rate != null) html += `<div class="stat-item"><div class="stat-value">${pm.recovery_rate.toFixed(0)}%</div><div class="stat-label">Recovery Rate</div></div>`;
+    if (pm.portfolio_yield != null) html += `<div class="stat-item"><div class="stat-value">${pm.portfolio_yield.toFixed(1)}%</div><div class="stat-label">Portfolio Yield</div></div>`;
+    if (pm.provision_coverage != null) html += `<div class="stat-item"><div class="stat-value">${pm.provision_coverage.toFixed(0)}%</div><div class="stat-label">Provision Coverage</div></div>`;
+    html += `</div>`;
+    if (pr.risk_signals?.length) {
+      html += `<div class="anomaly-list" style="margin-top:14px;">${pr.risk_signals.map(s => `<div class="anomaly-item"><span class="severity-badge ${s.severity}">${s.severity}</span><div><div class="anomaly-text" style="font-weight:600;">${esc(s.signal)}</div><div class="anomaly-text">${esc(s.detail)}</div></div></div>`).join('')}</div>`;
     }
     html += `</div>`;
   }
 
-  // ── GST & Bank Data ──
-  if (data.gst_data || data.bank_statement) {
-    html += `<div class="glass-card"><div class="card-header"><div class="card-icon blue">${icon('pieChart')}</div><div><div class="card-title">Parsed Financial Data</div></div></div><div class="stat-grid">`;
-    if (data.gst_data) {
-      const g = data.gst_data;
-      html += `<div class="stat-item"><div class="stat-value">INR ${fmtNum(g.total_turnover)}</div><div class="stat-label">GST Turnover</div></div>
-        <div class="stat-item"><div class="stat-value">INR ${fmtNum(g.total_tax_paid)}</div><div class="stat-label">Tax Paid</div></div>
-        <div class="stat-item"><div class="stat-value">INR ${fmtNum(g.total_itc_claimed)}</div><div class="stat-label">ITC Claimed</div></div>`;
+  // ── Risk Heatmap Dashboard ──
+  {
+    const hm = [];
+    if (data.loan_decision) hm.push({ label: 'Financial', score: data.loan_decision.final_credit_risk_score || 50, max: 100 });
+    if (data.sector_risk) hm.push({ label: 'Sector', score: data.sector_risk.sector_risk_score || 0, max: 100 });
+    if (data.fraud_report) hm.push({ label: 'Fraud', score: data.fraud_report.fraud_score || 0, max: 100 });
+    if (data.promoter_risk) hm.push({ label: 'Promoter', score: data.promoter_risk.promoter_risk_score || 0, max: 100 });
+    if (data.portfolio_risk && data.portfolio_risk.risk_level !== 'NOT_APPLICABLE') {
+      hm.push({ label: 'Portfolio', score: 100 - (data.portfolio_risk.portfolio_risk_score || 50), max: 100 });
     }
-    if (data.bank_statement) {
-      const b = data.bank_statement;
-      html += `<div class="stat-item"><div class="stat-value">INR ${fmtNum(b.total_credits)}</div><div class="stat-label">Bank Credits</div></div>
-        <div class="stat-item"><div class="stat-value">INR ${fmtNum(b.total_debits)}</div><div class="stat-label">Bank Debits</div></div>
-        <div class="stat-item"><div class="stat-value">INR ${fmtNum(b.average_balance)}</div><div class="stat-label">Avg Balance</div></div>`;
+    if (hm.length) {
+      html += `
+        <div class="glass-card">
+          <div class="card-header">
+            <div class="card-icon red">${icon('shield')}</div>
+            <div>
+              <div class="card-title">Risk Heatmap Dashboard</div>
+              <div class="card-description">Composite risk view across all dimensions</div>
+            </div>
+          </div>
+          <div class="heatmap-grid">${hm.map(h => {
+        const pct = Math.min(h.score, 100);
+        const clr = pct < 30 ? '#22c55e' : pct < 60 ? '#f59e0b' : pct < 80 ? '#f97316' : '#ef4444';
+        return `<div class="heatmap-cell" style="--hm-color:${clr}">
+              <div class="heatmap-value">${pct.toFixed(0)}</div>
+              <div class="heatmap-label">${h.label}</div>
+            </div>`;
+      }).join('')}</div>
+        </div>`;
     }
-    html += `</div></div>`;
   }
+
+  // ── Credit Committee Simulation ──
+  if (data.loan_decision) {
+    const ld = data.loan_decision;
+    html += `
+      <div class="glass-card cc-panel">
+        <div class="card-header">
+          <div class="card-icon indigo">${icon('users')}</div>
+          <div>
+            <div class="card-title">Credit Committee Simulation</div>
+            <div class="card-description">AI-generated panel view for committee review</div>
+          </div>
+        </div>
+        <div class="cc-tabs">
+          <button class="cc-tab active" onclick="switchCCTab(this, 'cc-rec')">Recommendation</button>
+          <button class="cc-tab" onclick="switchCCTab(this, 'cc-risk')">Risk Factors</button>
+          <button class="cc-tab" onclick="switchCCTab(this, 'cc-evidence')">Evidence</button>
+        </div>
+        <div class="cc-content" id="cc-rec">
+          <div class="cc-verdict ${ld.decision === 'APPROVE' ? 'approve' : ld.decision === 'REJECT' ? 'reject' : 'refer'}">
+            <div class="cc-verdict-label">Committee Verdict</div>
+            <div class="cc-verdict-value">${ld.decision}</div>
+          </div>
+          <div class="stat-grid">
+            <div class="stat-item"><div class="stat-value">INR ${fmtNum(ld.recommended_amount)}</div><div class="stat-label">Approved Amount</div></div>
+            <div class="stat-item"><div class="stat-value">${ld.interest_rate?.toFixed(2) || '0'}%</div><div class="stat-label">Interest Rate</div></div>
+            <div class="stat-item"><div class="stat-value">${ld.risk_grade || 'N/A'}</div><div class="stat-label">Risk Grade</div></div>
+            <div class="stat-item"><div class="stat-value">${ld.confidence_score?.toFixed(0) || 0}%</div><div class="stat-label">Confidence</div></div>
+          </div>
+          ${ld.explanation ? '<div style="margin-top:14px;font-size:13px;color:var(--text-secondary);white-space:pre-wrap;">' + esc(ld.explanation) + '</div>' : ''}
+        </div>
+        <div class="cc-content" id="cc-risk" style="display:none;">
+          ${(ld.rejection_reasons || []).length ? '<div class="anomaly-list">' + ld.rejection_reasons.map(r => '<div class="anomaly-item"><span class="severity-badge high">Risk</span><span class="anomaly-text">' + esc(r) + '</span></div>').join('') + '</div>' : ''}
+          ${(ld.conditions || []).length ? '<div style="margin-top:12px;"><strong style="font-size:13px;">Conditions:</strong>' + ld.conditions.map(c => '<div style="font-size:13px;color:var(--text-secondary);padding:4px 0;">• ' + esc(c) + '</div>').join('') + '</div>' : ''}
+        </div>
+        <div class="cc-content" id="cc-evidence" style="display:none;">
+          ${(ld.key_factors || []).length ? '<div class="tag-list">' + ld.key_factors.map(f => '<span class="tag">' + esc(f) + '</span>').join('') + '</div>' : '<div style="font-size:13px;color:var(--text-muted);">No key factors available.</div>'}
+        </div>
+      </div>`;
+  }
+
+  // ── Data Export Buttons ──
+  html += `
+    <div class="glass-card" style="text-align:center;">
+      <div class="card-header" style="justify-content:center;">
+        <div class="card-icon blue">${icon('document')}</div>
+        <div>
+          <div class="card-title">Export Analysis Data</div>
+          <div class="card-description">Download structured data for schema mapping</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="exportJSON()">Export JSON</button>
+        <button class="btn btn-ghost" onclick="exportCSV()">Export CSV</button>
+      </div>
+    </div>`;
 
   const target = document.getElementById('final-results-container') || resultsDiv;
   target.innerHTML = html;
@@ -777,3 +824,56 @@ function shakeElement(el) {
 const _shakeStyle = document.createElement('style');
 _shakeStyle.textContent = `@keyframes shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }`;
 document.head.appendChild(_shakeStyle);
+
+// ── Store last analysis for export ──────────────
+let _lastAnalysisData = null;
+
+// ── Credit Committee Tab Switch ─────────────────
+function switchCCTab(btn, panelId) {
+  const panel = btn.closest('.cc-panel');
+  panel.querySelectorAll('.cc-tab').forEach(t => t.classList.remove('active'));
+  panel.querySelectorAll('.cc-content').forEach(c => c.style.display = 'none');
+  btn.classList.add('active');
+  const target = document.getElementById(panelId);
+  if (target) target.style.display = 'block';
+}
+window.switchCCTab = switchCCTab;
+
+// ── Data Export ─────────────────────────────────
+function exportJSON() {
+  if (!_lastAnalysisData) return alert('No analysis data to export.');
+  const blob = new Blob([JSON.stringify(_lastAnalysisData, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (_lastAnalysisData.company_name || 'analysis') + '_report.json';
+  a.click();
+}
+window.exportJSON = exportJSON;
+
+function exportCSV() {
+  if (!_lastAnalysisData) return alert('No analysis data to export.');
+  const flat = flattenObj(_lastAnalysisData);
+  let csv = 'Field,Value\n';
+  for (const [k, v] of Object.entries(flat)) {
+    csv += `"${k}","${String(v ?? '').replace(/"/g, '""')}"\n`;
+  }
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (_lastAnalysisData.company_name || 'analysis') + '_report.csv';
+  a.click();
+}
+window.exportCSV = exportCSV;
+
+function flattenObj(obj, prefix = '', result = {}) {
+  for (const [k, v] of Object.entries(obj || {})) {
+    const key = prefix ? prefix + '.' + k : k;
+    if (v && typeof v === 'object' && !Array.isArray(v)) {
+      flattenObj(v, key, result);
+    } else {
+      result[key] = Array.isArray(v) ? JSON.stringify(v) : v;
+    }
+  }
+  return result;
+}
+
