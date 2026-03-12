@@ -68,10 +68,17 @@ class FiveCsScoreResponse(BaseModel):
 
 # --- Explainability ---
 
+class StructuredReasoning(BaseModel):
+    """Rigidly structured reasoning requirement."""
+    financial_reason: str
+    risk_signal: str
+    supporting_metric: str
+
+
 class ExplainabilityReport(BaseModel):
-    """Structured reasoning for a loan decision."""
+    """Structured explainability for a loan decision."""
     decision: str = "REFER"
-    decision_reasoning: list[dict] = Field(default_factory=list)
+    structured_reasons: list[StructuredReasoning] = Field(default_factory=list)
     risk_factors: list[dict] = Field(default_factory=list)
     financial_drivers: list[dict] = Field(default_factory=list)
     research_signals: list[dict] = Field(default_factory=list)

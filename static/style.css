@@ -7,49 +7,50 @@
 
 /* ── Design Tokens ──────────────────────────────── */
 :root {
-  /* Core palette */
-  --bg-primary: #0a0e1a;
-  --bg-secondary: #111827;
-  --bg-card: rgba(17, 24, 39, 0.7);
-  --bg-glass: rgba(255, 255, 255, 0.04);
-  --bg-glass-hover: rgba(255, 255, 255, 0.08);
+  /* Core palette - Strict Dark */
+  --bg-primary: #0F0F0F;
+  --bg-secondary: #0F0F0F;
+  --bg-card: #1A1A1A;
+  --bg-glass: #1A1A1A;
+  --bg-glass-hover: #262626;
 
-  /* Accent */
-  --accent: #6366f1;
-  --accent-glow: rgba(99, 102, 241, 0.25);
-  --accent-light: #818cf8;
-  --accent-dark: #4f46e5;
+  /* Accent - Neon Green & Gold */
+  --accent: #00FF9C;
+  --accent-glow: rgba(0, 255, 156, 0.15);
+  --accent-light: #00FF9C;
+  --accent-dark: #00CC7D;
+  --secondary: #FFB800;
 
   /* Text */
-  --text-primary: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
+  --text-primary: #FFFFFF;
+  --text-secondary: #CFCFCF;
+  --text-muted: #888888;
 
   /* Status */
-  --success: #10b981;
-  --success-bg: rgba(16, 185, 129, 0.12);
-  --warning: #f59e0b;
-  --warning-bg: rgba(245, 158, 11, 0.12);
-  --danger: #ef4444;
-  --danger-bg: rgba(239, 68, 68, 0.12);
-  --info: #3b82f6;
-  --info-bg: rgba(59, 130, 246, 0.12);
+  --success: #00FF9C;
+  --success-bg: rgba(0, 255, 156, 0.1);
+  --warning: #FFB800;
+  --warning-bg: rgba(255, 184, 0, 0.1);
+  --danger: #FF4D4D;
+  --danger-bg: rgba(255, 77, 77, 0.1);
+  --info: #CFCFCF;
+  --info-bg: rgba(207, 207, 207, 0.1);
 
-  /* Borders */
-  --border: rgba(255, 255, 255, 0.06);
-  --border-hover: rgba(255, 255, 255, 0.12);
+  /* Borders (Flat) */
+  --border: #333333;
+  --border-hover: #00FF9C;
 
-  /* Radius */
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 20px;
+  /* Radius (Flat Fintech) */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
 
-  /* Shadows */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 0 40px var(--accent-glow);
+  /* Shadows (Removed/Minimal) */
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
+  --shadow-glow: none;
 
   /* Transitions */
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
@@ -78,30 +79,9 @@ body {
   overflow-x: hidden;
 }
 
-/* Ambient background glow */
-body::before {
-  content: '';
-  position: fixed;
-  top: -40%;
-  left: -20%;
-  width: 80%;
-  height: 80%;
-  background: radial-gradient(ellipse, var(--accent-glow) 0%, transparent 60%);
-  pointer-events: none;
-  z-index: 0;
-}
-
-body::after {
-  content: '';
-  position: fixed;
-  bottom: -30%;
-  right: -20%;
-  width: 60%;
-  height: 60%;
-  background: radial-gradient(ellipse, rgba(16, 185, 129, 0.08) 0%, transparent 60%);
-  pointer-events: none;
-  z-index: 0;
-}
+/* Removed ambient gradients for flat appearance */
+body::before { display: none; }
+body::after { display: none; }
 
 /* ── Layout ─────────────────────────────────────── */
 .app-container {
@@ -128,22 +108,19 @@ body::after {
 .logo-icon {
   width: 48px;
   height: 48px;
-  background: linear-gradient(135deg, var(--accent), var(--accent-light));
+  background: var(--accent);
   border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 24px;
-  box-shadow: var(--shadow-glow);
+  color: var(--bg-primary);
 }
 
 .app-title {
   font-size: 28px;
   font-weight: 800;
-  background: linear-gradient(135deg, var(--text-primary), var(--accent-light));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--text-primary);
   letter-spacing: -0.5px;
 }
 
@@ -158,13 +135,11 @@ body::after {
 /* ── Glass Card ─────────────────────────────────── */
 .glass-card {
   background: var(--bg-card);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 28px;
   margin-bottom: 20px;
-  transition: border-color 0.3s var(--ease), box-shadow 0.3s var(--ease);
+  transition: border-color 0.3s var(--ease);
 }
 
 .glass-card:hover {
@@ -190,7 +165,8 @@ body::after {
 }
 
 .card-icon.blue {
-  background: var(--info-bg);
+  background: var(--accent-glow);
+  color: var(--accent);
 }
 
 .card-icon.green {
@@ -206,7 +182,8 @@ body::after {
 }
 
 .card-icon.indigo {
-  background: rgba(99, 102, 241, 0.12);
+  background: var(--warning-bg);
+  color: var(--warning);
 }
 
 .card-title {
@@ -375,7 +352,7 @@ select.form-input {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+  background: var(--accent);
   color: #fff;
   box-shadow: var(--shadow-md), 0 0 20px var(--accent-glow);
 }
@@ -465,10 +442,7 @@ select.form-input {
 
 .skeleton-line {
   height: 14px;
-  background: linear-gradient(90deg,
-      rgba(255, 255, 255, 0.04) 25%,
-      rgba(255, 255, 255, 0.08) 50%,
-      rgba(255, 255, 255, 0.04) 75%);
+  background: var(--accent);
   background-size: 200% 100%;
   animation: skeleton-pulse 1.5s ease-in-out infinite;
   border-radius: 6px;
@@ -509,10 +483,7 @@ select.form-input {
 
 .skeleton-block {
   height: 80px;
-  background: linear-gradient(90deg,
-      rgba(255, 255, 255, 0.03) 25%,
-      rgba(255, 255, 255, 0.06) 50%,
-      rgba(255, 255, 255, 0.03) 75%);
+  background: var(--accent);
   background-size: 200% 100%;
   animation: skeleton-pulse 1.5s ease-in-out infinite;
   border-radius: var(--radius-sm);
@@ -581,7 +552,7 @@ select.form-input {
 }
 
 .decision-banner.APPROVE::before {
-  background: linear-gradient(135deg, var(--success), transparent);
+  background: var(--accent);
 }
 
 .decision-banner.REJECT {
@@ -590,7 +561,7 @@ select.form-input {
 }
 
 .decision-banner.REJECT::before {
-  background: linear-gradient(135deg, var(--danger), transparent);
+  background: var(--accent);
 }
 
 .decision-banner.REFER {
@@ -599,7 +570,7 @@ select.form-input {
 }
 
 .decision-banner.REFER::before {
-  background: linear-gradient(135deg, var(--warning), transparent);
+  background: var(--accent);
 }
 
 .decision-label {
@@ -695,19 +666,19 @@ select.form-input {
   height: 100%;
   border-radius: 5px;
   transition: width 1s var(--ease);
-  background: linear-gradient(90deg, var(--accent), var(--accent-light));
+  background: var(--accent);
 }
 
 .score-bar-fill.high {
-  background: linear-gradient(90deg, #10b981, #34d399);
+  background: var(--success);
 }
 
 .score-bar-fill.medium {
-  background: linear-gradient(90deg, #f59e0b, #fbbf24);
+  background: var(--warning);
 }
 
 .score-bar-fill.low {
-  background: linear-gradient(90deg, #ef4444, #f87171);
+  background: var(--danger);
 }
 
 .score-value {
@@ -758,8 +729,8 @@ select.form-input {
 }
 
 .severity-badge.high {
-  background: rgba(249, 115, 22, 0.12);
-  color: #f97316;
+  background: var(--danger-bg);
+  color: var(--danger);
 }
 
 .severity-badge.medium {
@@ -818,8 +789,8 @@ select.form-input {
 }
 
 .news-tag.category {
-  background: rgba(99, 102, 241, 0.12);
-  color: var(--accent-light);
+  background: var(--accent-glow);
+  color: var(--accent);
 }
 
 .news-tag.positive {
@@ -1950,21 +1921,21 @@ select.form-input {
 }
 
 .cc-verdict.reject .cc-verdict-value {
-  color: #ef4444;
+  color: var(--danger);
 }
 
 .cc-verdict.refer .cc-verdict-value {
-  color: #f59e0b;
+  color: var(--warning);
 }
 
 .card-icon.purple {
-  background: rgba(168, 85, 247, 0.12);
-  color: #a855f7;
+  background: var(--accent-glow);
+  color: var(--accent);
 }
 
 .card-icon.red {
-  background: rgba(239, 68, 68, 0.12);
-  color: #ef4444;
+  background: var(--danger-bg);
+  color: var(--danger);
 }
 
 @keyframes fadeIn {

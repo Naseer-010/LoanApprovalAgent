@@ -1,12 +1,10 @@
-"""
-Entity Onboarding Routes — stores borrower profile + loan request.
-"""
 import logging
 import sqlite3
+import re
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 from app.services.database.borrower_db import DB_DIR
 
@@ -87,7 +85,7 @@ class EntityOnboardingRequest(BaseModel):
     """Multi-step onboarding payload."""
 
     # Step 1 — Entity Details
-    company_name: str
+    company_name: str = Field(..., min_length=2, max_length=150)
     cin: str = ""
     pan: str = ""
     sector: str = ""
@@ -98,6 +96,27 @@ class EntityOnboardingRequest(BaseModel):
     # Step 2 — Loan Details
     loan_type: str = ""
     requested_amount: float = 0.0
+
+    @field_validator("pan")
+    @classmethod
+    def validate_pan(cls, v: str) -> str:
+        if v and not re.match(r"^[A-Z]{5}[0-9]{4}[A-Z]{1}$", v.upper()):
+            raise ValueError("Invalid PAN format. Must be like ABCDE1234F.")
+        return v.upper() if v else v
+
+    @field_validator("cin")
+    @classmethod
+    def validate_cin(cls, v: str) -> str:
+        if v and not re.match(r"^[LU][0-9]{5}[A-Z]{2}[0-9]{4}[A-Z]{3}[0-9]{6}$", v.upper()):
+            raise ValueError("Invalid CIN format.")
+        return v.upper() if v else v
+
+    @field_validator("annual_turnover", "requested_amount")
+    @classmethod
+    def validate_amounts(cls, v: float) -> float:
+        if v < 0:
+            raise ValueError("Amount cannot be negative.")
+        return v
     tenure_months: int = 0
     proposed_rate: float = 0.0
 

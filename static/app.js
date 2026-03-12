@@ -483,8 +483,8 @@ function renderResults(data) {
             edges: new vis.DataSet(pr.graph_structure.edges)
           };
           const options = {
-            nodes: { shape: 'dot', font: { color: '#f1f5f9' }, scaling: { max: 20 } },
-            edges: { color: '#64748b' },
+            nodes: { shape: 'dot', font: { color: '#FFFFFF' }, scaling: { max: 20 } },
+            edges: { color: '#888888' },
             physics: { barnesHut: { gravitationalConstant: -3000 } }
           };
           new vis.Network(container, data, options);
@@ -727,7 +727,7 @@ function renderResults(data) {
           </div>
           <div class="heatmap-grid">${hm.map(h => {
         const pct = Math.min(h.score, 100);
-        const clr = pct < 30 ? '#22c55e' : pct < 60 ? '#f59e0b' : pct < 80 ? '#f97316' : '#ef4444';
+        const clr = pct < 30 ? '#00FF9C' : pct < 60 ? '#FFB800' : pct < 80 ? '#FFB800' : '#FF4D4D';
         return `<div class="heatmap-cell" style="--hm-color:${clr}">
               <div class="heatmap-value">${pct.toFixed(0)}</div>
               <div class="heatmap-label">${h.label}</div>

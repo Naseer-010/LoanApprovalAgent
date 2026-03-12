@@ -134,7 +134,16 @@ def classify_uploaded_document(
     doc_id = file.filename or str(hash(text[:200]))
     result["doc_id"] = doc_id
     result["file_path"] = str(path)
-    result["status"] = "pending_validation"
+    
+    # Enforce confidence threshold
+    if result.get("confidence", 0) < 0.7:
+        result["status"] = "pending_validation"
+        result["requires_manual_review"] = True
+    else:
+        result["status"] = "auto_validated"
+        result["validated_type"] = result.get("predicted_type", "Unknown")
+        result["requires_manual_review"] = False
+        
     _classified_docs[doc_id] = result
 
     return result

@@ -1,6 +1,6 @@
 """Pydantic schemas for Data Ingestor (Pillar 1)."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # --- Document Analysis ---
@@ -19,6 +19,18 @@ class ExtractedFinancials(BaseModel):
     accounts_receivable: float | None = None
     accounts_payable: float | None = None
     inventory: float | None = None
+    
+    # Reliability metrics
+    extraction_confidence: float = 0.85
+    extraction_method: str = "hybrid"
+    
+    @model_validator(mode="after")
+    def validate_financial_sanity(self):
+        if self.revenue is not None and self.revenue < 0:
+            raise ValueError("Revenue cannot be negative.")
+        if self.total_debt is not None and self.total_debt < 0:
+            raise ValueError("Total debt cannot be negative.")
+        return self
 
 
 class ExtractedRisks(BaseModel):

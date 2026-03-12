@@ -23,7 +23,7 @@ def build_explainability_report(
     Build structured explainability report for a loan decision.
 
     Returns a dict with categorized reasoning:
-    - decision_reasoning: why approved/rejected/referred
+    - structured_reasons: rigidly formatted [Financial Reason, Risk Signal, Metric]
     - risk_factors: detected risks and their severity
     - financial_drivers: ratios that influenced the decision
     - research_signals: external signals that affected scoring
@@ -31,7 +31,7 @@ def build_explainability_report(
     """
     report = {
         "decision": decision.get("decision", "REFER"),
-        "decision_reasoning": [],
+        "structured_reasons": [],
         "risk_factors": [],
         "financial_drivers": [],
         "research_signals": [],
@@ -39,8 +39,10 @@ def build_explainability_report(
         "confidence_basis": [],
     }
 
-    # Decision reasoning
-    report["decision_reasoning"] = _explain_decision(decision)
+    # Rigid Structured Reasoning
+    report["structured_reasons"] = _build_structured_reasons(
+        decision, financial_ratios, five_cs,
+    )
 
     # Financial ratio drivers
     if financial_ratios:
@@ -67,55 +69,62 @@ def build_explainability_report(
     return report
 
 
-def _explain_decision(decision: dict) -> list[dict]:
-    """Explain why the decision was made."""
-    reasons = []
+def _build_structured_reasons(
+    decision: dict, ratios: dict | None, five_cs: dict | None,
+) -> list[dict]:
+    """Strictly format reasons into [Financial Reason, Risk Signal, Supporting Metric]."""
+    structured = []
     verdict = decision.get("decision", "REFER")
+    reasons = decision.get("rejection_reasons", [])
 
     if verdict == "APPROVE":
-        reasons.append({
-            "factor": "Overall Assessment",
-            "direction": "positive",
-            "detail": (
-                f"Company demonstrates adequate creditworthiness with "
-                f"a risk grade of {decision.get('risk_grade', 'N/A')} "
-                f"and confidence score of "
-                f"{decision.get('confidence_score', 0):.1%}."
-            ),
+        structured.append({
+            "financial_reason": "Financial metrics exceed minimum banking thresholds.",
+            "risk_signal": "Low Default Risk",
+            "supporting_metric": f"Risk Grade {decision.get('risk_grade', 'A')}",
+        })
+        return structured
+
+    for r in reasons[:5]:
+        signal = "High Risk" if "Critical" in r or "High" in r else "Moderate Risk"
+        metric = "Derived from Ratio Analysis / Five Cs"
+
+        # Try to extract the metric dynamically
+        if "DSCR" in r:
+            metric = "DSCR below benchmark"
+        elif "ICR" in r:
+            metric = "ICR below benchmark"
+        elif "Leverage" in r:
+            metric = "Elevated Leverage Ratio"
+        elif "Fraud" in r:
+            metric = "Fraud Score"
+        elif "Working capital" in r:
+            metric = "Cash Conversion Cycle"
+
+        structured.append({
+            "financial_reason": r,
+            "risk_signal": signal,
+            "supporting_metric": metric,
         })
 
-    elif verdict == "REJECT":
-        for reason in decision.get("rejection_reasons", [])[:5]:
-            reasons.append({
-                "factor": "Rejection Factor",
-                "direction": "negative",
-                "detail": reason,
-            })
-
-    elif verdict == "REFER":
-        reasons.append({
-            "factor": "Manual Review Required",
-            "direction": "neutral",
-            "detail": (
-                "The application has mixed signals that require "
-                "human judgment for final decision."
-            ),
+    if not structured:
+        structured.append({
+            "financial_reason": "Mixed signals across financial and qualitative data.",
+            "risk_signal": "Ambiguous Risk",
+            "supporting_metric": "Overall Confidence < 70%",
         })
-        for reason in decision.get("rejection_reasons", [])[:3]:
-            reasons.append({
-                "factor": "Concern",
-                "direction": "negative",
-                "detail": reason,
-            })
 
-    return reasons
+    return structured
 
 
 def _explain_financials(ratios: dict) -> list[dict]:
     """Explain which financial ratios influenced the decision."""
     drivers = []
 
-    ratio_fields = ["dscr", "icr", "leverage", "current_ratio", "debt_to_equity", "ebitda_margin"]
+    ratio_fields = [
+        "dscr", "icr", "leverage", "current_ratio",
+        "debt_to_equity", "ebitda_margin",
+    ]
 
     for field in ratio_fields:
         ratio = ratios.get(field, {})
