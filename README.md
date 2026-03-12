@@ -189,22 +189,6 @@ Interactive API documentation is available at **http://localhost:8000/docs** (Sw
 
 ---
 
-## Environment Variables
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `HUGGINGFACEHUB_API_TOKEN` | ✅ | — | HuggingFace API token for LLM inference |
-| `INGESTOR_MODEL` | ❌ | `mistralai/Mistral-7B-Instruct-v0.3` | LLM model for document ingestion |
-| `RESEARCH_MODEL` | ❌ | `mistralai/Mistral-7B-Instruct-v0.3` | LLM model for research analysis |
-| `RECOMMENDATION_MODEL` | ❌ | `mistralai/Mistral-7B-Instruct-v0.3` | LLM model for recommendations |
-| `LLM_MAX_NEW_TOKENS` | ❌ | `1024` | Maximum tokens per LLM response |
-| `LLM_TEMPERATURE` | ❌ | `0.1` | LLM temperature (lower = more deterministic) |
-| `GNEWS_API_KEY` | ❌ | — | GNews API key for news aggregation |
-| `SERPER_API_KEY` | ❌ | — | Serper API key for enhanced search |
-| `NEWSAPI_KEY` | ❌ | — | NewsAPI key for news data |
-
----
-
 ## Usage Guide
 
 ### Step 1: Entity Onboarding
