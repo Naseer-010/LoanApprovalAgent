@@ -11,7 +11,6 @@
 - [AI Agent Network](#ai-agent-network)
 - [Tech Stack](#tech-stack)
 - [Getting Started](#getting-started)
-- [Environment Variables](#environment-variables)
 - [Usage Guide](#usage-guide)
 - [API Reference](#api-reference)
 - [Security & Hardening](#security--hardening)
