@@ -79,6 +79,7 @@ from app.agents.historical_trust_agent import (
 )
 from app.agents.swot_agent import run_swot_analysis
 from app.agents.portfolio_agent import run_portfolio_analysis
+from app.agents.financial_trend_agent import run_financial_trend_analysis
 from app.services.research.web_researcher import run_web_research
 from app.services.database.borrower_db import store_application
 
@@ -89,6 +90,7 @@ from app.schemas.pipeline import (
     EarlyWarningReport,
     WorkingCapitalReport,
     HistoricalTrustReport,
+    FinancialTrendReport,
 )
 
 logger = logging.getLogger(__name__)
@@ -844,6 +846,21 @@ def investigate_pipeline(
             logger.error(e)
             yield f"data: {json.dumps({'step': 'Generating CAM Report', 'status': 'error'})}\n\n"
 
+        # Step 10: Financial Trend Analysis
+        financial_trends_result = None
+        yield f"data: {json.dumps({'step': 'Analyzing Financial Trends', 'status': 'in_progress'})}\n\n"
+        await asyncio.sleep(0.1)
+        try:
+            trend_dict = run_financial_trend_analysis(
+                company_name,
+                financial,
+            )
+            financial_trends_result = FinancialTrendReport(**trend_dict)
+            yield f"data: {json.dumps({'step': 'Analyzing Financial Trends', 'status': 'completed'})}\n\n"
+        except Exception as e:
+            logger.error("Financial trends failed: %s", e)
+            yield f"data: {json.dumps({'step': 'Analyzing Financial Trends', 'status': 'error'})}\n\n"
+
         # Compile final result matching FullAnalysisResponse
         final_result = FullAnalysisResponse(
             company_name=company_name,
@@ -862,6 +879,7 @@ def investigate_pipeline(
             historical_trust=historical_trust,
             swot_analysis=swot_result,
             portfolio_risk=portfolio_risk_result,
+            financial_trends=financial_trends_result,
             five_cs_scores=five_cs,
             loan_decision=decision,
             credit_memo=cam,

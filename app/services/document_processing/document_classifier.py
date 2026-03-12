@@ -20,6 +20,11 @@ DOC_CLASSES = [
     "Unknown",
 ]
 
+
+def get_doc_classes() -> list[str]:
+    """Return all supported document type classes."""
+    return list(DOC_CLASSES)
+
 # Keyword rules — ordered by specificity
 _KEYWORD_RULES: list[tuple[str, list[str]]] = [
     (

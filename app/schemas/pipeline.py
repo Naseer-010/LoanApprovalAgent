@@ -106,6 +106,17 @@ class PortfolioRiskReport(BaseModel):
     summary: str = ""
 
 
+class FinancialTrendReport(BaseModel):
+    """Multi-year financial trend analysis output."""
+    company_name: str
+    trends: list[dict] = Field(default_factory=list)
+    stability_score: float = 50.0
+    stability_assessment: str = "Insufficient Data"
+    trend_signals: list[dict] = Field(default_factory=list)
+    num_metrics_analyzed: int = 0
+    data_quality: str = "limited"
+
+
 class FullAnalysisResponse(BaseModel):
     """Unified response combining all pillar outputs."""
 
@@ -139,6 +150,7 @@ class FullAnalysisResponse(BaseModel):
     # Phase 5 — Hackathon Extensions
     swot_analysis: SwotReport | None = None
     portfolio_risk: PortfolioRiskReport | None = None
+    financial_trends: FinancialTrendReport | None = None
 
     # Processing metadata
     steps_completed: list[str] = Field(default_factory=list)

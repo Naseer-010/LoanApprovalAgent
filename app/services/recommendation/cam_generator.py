@@ -166,6 +166,16 @@ def generate_cam(request: CAMRequest) -> CreditAppraisalMemo:
         request.company_name, sections, decision, timestamp, safe_name,
     )
 
+    # Convert paths to download URLs for the frontend
+    docx_url = (
+        f"/reports/download/{Path(docx_path).name}"
+        if docx_path else ""
+    )
+    pdf_url = (
+        f"/reports/download/{Path(pdf_path).name}"
+        if pdf_path else ""
+    )
+
     return CreditAppraisalMemo(
         company_name=request.company_name,
         generated_at=datetime.now().isoformat(),
@@ -175,8 +185,8 @@ def generate_cam(request: CAMRequest) -> CreditAppraisalMemo:
         risk_grade=risk_grade,
         recommended_amount=recommended_amount,
         interest_rate=interest_rate,
-        docx_path=docx_path,
-        pdf_path=pdf_path,
+        docx_path=docx_url,
+        pdf_path=pdf_url,
     )
 
 

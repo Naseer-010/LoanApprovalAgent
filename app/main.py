@@ -9,6 +9,7 @@ from app.routes import (
     onboarding_routes,
     pipeline_routes,
     recommendation_routes,
+    report_routes,
     research_routes,
     upload_routes,
     agent_routes,
@@ -45,6 +46,7 @@ app.include_router(research_routes.router)
 app.include_router(recommendation_routes.router)
 app.include_router(pipeline_routes.router)
 app.include_router(agent_routes.router)
+app.include_router(report_routes.router)
 
 
 @app.get("/", tags=["Frontend"], include_in_schema=False)

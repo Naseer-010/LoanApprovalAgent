@@ -777,6 +777,78 @@ function renderResults(data) {
       </div>`;
   }
 
+  // ── Financial Trend Analysis ──
+  if (data.financial_trends) {
+    const ft = data.financial_trends;
+    const stabColor = ft.stability_score >= 75 ? 'var(--success)' : ft.stability_score >= 55 ? 'var(--warning)' : 'var(--danger)';
+    html += `
+      <div class="glass-card">
+        <div class="card-header">
+          <div class="card-icon purple">${icon('chartBar')}</div>
+          <div>
+            <div class="card-title">Financial Trend Analysis</div>
+            <div class="card-description">Stability: <span style="color:${stabColor};font-weight:700;">${ft.stability_assessment}</span> | Score: ${ft.stability_score.toFixed(0)}/100 | ${ft.num_metrics_analyzed} metrics | Data: ${ft.data_quality}</div>
+          </div>
+        </div>`;
+    if (ft.trends?.length) {
+      html += `<div class="stat-grid">`;
+      ft.trends.forEach(t => {
+        const severityColor = t.severity === 'positive' ? 'var(--success)' : t.severity === 'critical' ? 'var(--danger)' : t.severity === 'warning' ? 'var(--warning)' : 'var(--text-secondary)';
+        html += `
+          <div class="stat-item" style="border-left:3px solid ${severityColor};padding-left:12px;">
+            <div class="stat-value" style="color:${severityColor}">${esc(t.value)}</div>
+            <div class="stat-label">${esc(t.metric)} — ${esc(t.direction)}</div>
+            ${t.detail ? `<div style="font-size:11px;color:var(--text-muted);margin-top:4px;">${esc(t.detail)}</div>` : ''}
+          </div>`;
+      });
+      html += `</div>`;
+    }
+    if (ft.trend_signals?.length) {
+      html += `<div class="anomaly-list" style="margin-top:14px;">${ft.trend_signals.map(s => `<div class="anomaly-item"><span class="severity-badge ${s.severity}">${s.severity}</span><div><div class="anomaly-text" style="font-weight:600;">${esc(s.signal)}</div><div class="anomaly-text">${esc(s.detail)}</div></div></div>`).join('')}</div>`;
+    }
+    html += `</div>`;
+  }
+
+  // ── CAM Report Download ──
+  if (data.credit_memo) {
+    const cm = data.credit_memo;
+    html += `
+      <div class="glass-card" style="text-align:center;">
+        <div class="card-header" style="justify-content:center;">
+          <div class="card-icon green">${icon('document')}</div>
+          <div>
+            <div class="card-title">Credit Appraisal Memo</div>
+            <div class="card-description">${esc(cm.recommendation || '')} | Risk: ${esc(cm.risk_grade || 'N/A')} | Amount: INR ${fmtNum(cm.recommended_amount)}</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+          ${cm.docx_path ? `<a class="btn btn-primary" href="${cm.docx_path}" download style="text-decoration:none;">Download DOCX</a>` : ''}
+          ${cm.pdf_path ? `<a class="btn btn-primary" href="${cm.pdf_path}" download style="text-decoration:none;background:var(--danger);">Download PDF</a>` : ''}
+        </div>
+      </div>`;
+  }
+
+  // ── Schema Mapping Builder ──
+  {
+    html += `
+      <div class="glass-card" id="schema-builder-card">
+        <div class="card-header">
+          <div class="card-icon blue">${icon('key')}</div>
+          <div>
+            <div class="card-title">Schema Mapping Builder</div>
+            <div class="card-description">Select fields to map and export in custom format</div>
+          </div>
+        </div>
+        <div id="schema-fields-container" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;"></div>
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+          <button class="btn btn-primary" onclick="runSchemaMap('json')">Export JSON</button>
+          <button class="btn btn-ghost" onclick="runSchemaMap('csv')">Export CSV</button>
+          <span id="schema-status" style="font-size:12px;color:var(--text-muted);"></span>
+        </div>
+        <pre id="schema-output" style="display:none;margin-top:14px;font-size:12px;background:var(--bg-glass);padding:12px;border-radius:var(--radius-sm);overflow-x:auto;max-height:300px;color:var(--text-secondary);"></pre>
+      </div>`;
+  }
+
   // ── Data Export Buttons ──
   html += `
     <div class="glass-card" style="text-align:center;">
@@ -799,6 +871,16 @@ function renderResults(data) {
   if (!document.getElementById('final-results-container')) {
     resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
+
+  // Populate schema builder fields from flat data
+  setTimeout(() => {
+    const container = document.getElementById('schema-fields-container');
+    if (container && _lastAnalysisData) {
+      const flat = flattenObj(_lastAnalysisData);
+      const keys = Object.keys(flat).slice(0, 50);
+      container.innerHTML = keys.map(k => `<label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-secondary);cursor:pointer;"><input type="checkbox" value="${esc(k)}" class="schema-field-cb" checked> ${esc(k)}</label>`).join('');
+    }
+  }, 200);
 
   // Animate score bars
   requestAnimationFrame(() => {
@@ -877,3 +959,36 @@ function flattenObj(obj, prefix = '', result = {}) {
   return result;
 }
 
+// ── Schema Builder ──────────────────────────────
+function runSchemaMap(format) {
+  if (!_lastAnalysisData) return alert('No analysis data available.');
+  const checkboxes = document.querySelectorAll('.schema-field-cb:checked');
+  const fields = Array.from(checkboxes).map(cb => cb.value);
+  if (!fields.length) return alert('Select at least one field.');
+
+  const statusEl = document.getElementById('schema-status');
+  const outputEl = document.getElementById('schema-output');
+  if (statusEl) statusEl.textContent = 'Mapping...';
+
+  fetch('/ingest/schema-map', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      extracted_data: flattenObj(_lastAnalysisData),
+      schema_fields: fields,
+      export_format: format,
+    }),
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (statusEl) statusEl.textContent = `Mapped ${fields.length} fields (${format.toUpperCase()})`;
+      if (outputEl) {
+        outputEl.style.display = 'block';
+        outputEl.textContent = typeof data.data === 'string' ? data.data : JSON.stringify(data.mapped, null, 2);
+      }
+    })
+    .catch(err => {
+      if (statusEl) statusEl.textContent = 'Error: ' + err.message;
+    });
+}
+window.runSchemaMap = runSchemaMap;
